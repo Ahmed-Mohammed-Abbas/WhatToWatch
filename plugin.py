@@ -3,7 +3,7 @@
 #  Author: reali22
 #  Version: 1.0
 #  Description: Advanced EPG Browser with categorization, satellite filtering,
-#               smart deduplication, and Auto-Update.
+#               smart deduplication, Auto-Update, and Preview Mode.
 #  GitHub: https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch
 # ============================================================================
 
@@ -28,7 +28,6 @@ UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToW
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
 # --- 1. Setup Paths & Icons ---
-# Standard Enigma2 path resolution
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
@@ -46,8 +45,11 @@ def get_genre_icon(nibble):
     if os.path.exists(default_path): return loadPNG(default_path)
     return None
 
-# --- 2. Advanced Categorization ---
+# --- 2. Enhanced Categorization (LyngSat Based) ---
 def classify_by_channel_name(channel_name):
+    """
+    Categorizes channels using a comprehensive list based on Satellite lineups (7W, 13E, 19.2E).
+    """
     name_lower = channel_name.lower()
     
     # === ADULT FILTER (Safety) ===
@@ -55,44 +57,82 @@ def classify_by_channel_name(channel_name):
         "xxx", "18+", "+18", "adult", "porn", "sex", "barely", "hustler", 
         "playboy", "penthouse", "blue movie", "redlight", "babes", "brazzers", 
         "dorcel", "private", "vivid", "colours", "night", "hot", "love", 
-        "sct", "pink", "passion", "girls"
+        "sct", "pink", "passion", "girls", "centoxcento", "exotic"
     ]
     if any(k in name_lower for k in adult_keywords):
         if "essex" not in name_lower and "sussex" not in name_lower:
              return None, None
 
-    # === DOCUMENTARY (0x9) ===
-    if any(k in name_lower for k in ["doc", "history", "historia", "nat geo", "wild", "planet", "earth", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "travel", "cook", "food", "geographic"]):
-        return "Documentary", 0x9
-
     # === SPORTS (0x4) ===
-    if any(k in name_lower for k in ["sport", "soccer", "football", "kora", "league", "racing", "f1", "wwe", "ufc", "fight", "box", "arena"]):
+    # Priority check for major networks
+    if any(k in name_lower for k in [
+        "sport", "soccer", "football", "kora", "league", "racing", "f1", "wwe", "ufc", 
+        "fight", "box", "arena", "calcio", "match", "dazn", "motogp", "nba", "tennis",
+        "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", 
+        "nile sport", "arryadia", "kuwait sport", "saudi sport", "oman sport", "bahrain sport",
+        "euro", "bt sport", "sky sport", "polstat sport", "canal+ sport", "ziggo sport", 
+        "tsn", "supersport", "eleven"
+    ]):
         return "Sports", 0x4
-    if any(k in name_lower for k in ["espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "euro", "bt sport", "sky sport", "match!", "dazn"]):
-        return "Sports", 0x4
-
-    # === NEWS (0x2) ===
-    if any(k in name_lower for k in ["news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", "bloomberg", "weather", "trt", "dw", "lbc", "mtv lebanon"]):
-        return "News", 0x2
-
-    # === KIDS (0x5) ===
-    if any(k in name_lower for k in ["kid", "child", "cartoon", "toon", "anime", "junior", "disney", "nick", "boomerang", "cbeebies", "baraem", "jeem", "spacetoon", "mbc 3", "cn", "pogo"]):
-        return "Kids", 0x5
-
-    # === MUSIC (0x6) ===
-    if any(k in name_lower for k in ["music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani"]):
-        return "Music", 0x6
 
     # === MOVIES (0x1) ===
-    if any(k in name_lower for k in ["movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office"]):
-        return "Movies", 0x1
-    if any(k in name_lower for k in ["hbo", "sky cinema", "mbc 2", "mbc max", "mbc action", "rotana cinema", "zee aflam", "b4u", "osn movies", "amc", "fox action", "fox thriller"]):
-        return "Movies", 0x1
-    if any(k in name_lower for k in ["action", "thriller", "horror", "comedy", "sci-fi"]):
+    # Specific Movie Networks & Genres
+    if any(k in name_lower for k in [
+        "movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere",
+        "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood",
+        "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "b4u plus",
+        "osn movies", "amc", "fox movies", "fox action", "fox thriller", "paramount", "tcm",
+        "action", "thriller", "horror", "comedy", "sci-fi", "western", "romance",
+        "canal+ cinema", "cine+", "filmbox", "warnertv", "sony max"
+    ]):
         return "Movies", 0x1
 
-    # === SHOWS (0x3) ===
-    if any(k in name_lower for k in ["drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", "colors", "zee", "star plus", "mbc 1", "mbc 4", "rotana khalijia", "sky one", "bbc one", "itv", "rai", "zdf", "rtl"]):
+    # === KIDS (0x5) ===
+    if any(k in name_lower for k in [
+        "kid", "child", "cartoon", "toon", "anime", "anim", "junior", "disney", 
+        "nick", "boomerang", "cbeebies", "baraem", "jeem", "ajyal", "spacetoon", 
+        "mbc 3", "cn", "pogo", "majid", "dreamworks", "baby", "duck", "fix&foxi",
+        "kika", "super rtl", "gulli", "clan"
+    ]):
+        return "Kids", 0x5
+
+    # === NEWS (0x2) ===
+    if any(k in name_lower for k in [
+        "news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", 
+        "bloomberg", "weather", "trt", "dw", "lbc", "mtv lebanon", "skynews",
+        "france 24", "russia today", "rt ", "euronews", "tagesschau", "n24", "welt",
+        "i24", "al araby", "alghad", "asharq", "watania", "al ekhbariya"
+    ]):
+        return "News", 0x2
+
+    # === DOCUMENTARY (0x9) ===
+    if any(k in name_lower for k in [
+        "doc", "history", "historia", "nat geo", "wild", "planet", "earth", 
+        "animal", "science", "investigation", "crime", "discovery", "tlc", 
+        "quest", "travel", "cook", "food", "geographic", "arte", "phoenix", 
+        "zdfinfo", "alpha", "explorer", "viasat explore", "viasat history"
+    ]):
+        return "Documentary", 0x9
+
+    # === MUSIC (0x6) ===
+    if any(k in name_lower for k in [
+        "music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", 
+        "mazzika", "rotana clip", "rotana music", "wanasah", "aghani", "arabica",
+        "4fun", "eska", "polo", "vivia", "nrj", "kiss", "dance", "hits"
+    ]):
+        return "Music", 0x6
+
+    # === SHOWS / SERIES (0x3) ===
+    # General Entertainment Channels
+    if any(k in name_lower for k in [
+        "drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", 
+        "entertainment", "novelas", "soaps",
+        "mbc 1", "mbc 4", "mbc drama", "mbc masr", "mbc iraq", "rotana khalijia", "rotana drama",
+        "zee alwan", "zee tv", "star plus", "colors", "sony",
+        "sky one", "sky atlantic", "bbc one", "bbc two", "itv", "channel 4",
+        "rai 1", "rai 2", "canale 5", "italia 1", "tf1", "m6", "antena 3",
+        "zdf", "rtl", "sat.1", "pro7", "vox", "kabel 1"
+    ]):
         return "Shows", 0x3
 
     return "General/Other", 0x0
@@ -145,7 +185,7 @@ def check_epg_dat_exists():
         if os.path.exists(p): return True, p
     return False, "Not Found"
 
-# --- 4. List Builder (Percentage Text) ---
+# --- 4. List Builder ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
@@ -153,7 +193,7 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     
     # Calculate Percentage
     progress_str = ""
-    progress_color = 0xFFFFFF # Default White
+    progress_color = 0xFFFFFF 
     
     if show_progress and duration > 0:
         current_time = int(time.time())
@@ -162,33 +202,18 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 100: percent = 100
             progress_str = f"({percent}%)"
             
-            # Smart Coloring
-            if percent > 85:
-                progress_color = 0xFF4040 # Red (Ending soon)
-            elif percent > 10:
-                progress_color = 0x00FF00 # Green (Active)
-            # Else White (Just started)
+            if percent > 85: progress_color = 0xFF4040 # Red
+            elif percent > 10: progress_color = 0x00FF00 # Green
     
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
-        
-        # 1. Icon (Left)
         MultiContentEntryPixmapAlphaTest(pos=(10, 5), size=(40, 40), png=icon_pixmap),
-        
-        # 2. Channel & Event Stack (Width: 280)
         MultiContentEntryText(pos=(60, 2), size=(280, 24), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
         MultiContentEntryText(pos=(60, 26), size=(280, 20), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
-        
-        # 3. Time (Width: 70)
         MultiContentEntryText(pos=(350, 2), size=(70, 48), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
-        
-        # 4. Category (Width: 130)
         MultiContentEntryText(pos=(430, 2), size=(130, 48), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=category_name, color=0xFFFF00, color_sel=0xFFFF00),
-        
-        # 5. Percentage (Far Right, Width: 80)
         MultiContentEntryText(pos=(570, 2), size=(80, 48), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
     ]
-    
     return res
 
 # --- 5. Backend Logic ---
@@ -281,7 +306,6 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
 
 # --- 6. The GUI Screen ---
 class WhatToWatchScreen(Screen):
-    # Updated Title to include Version
     skin = f"""
         <screen position="center,center" size="800,600" title="What to Watch v{VERSION}">
             <widget name="status_label" position="10,10" size="780,40" font="Regular;22" halign="center" valign="center" foregroundColor="#00ff00" />
@@ -440,10 +464,8 @@ class WhatToWatchScreen(Screen):
         elif action == "update":
             self.check_updates()
 
-    # --- AUTO UPDATE LOGIC ---
     def check_updates(self):
         self["status_label"].setText("Checking for updates...")
-        # Use wget to fetch version.txt to /tmp
         cmd = f"wget -qO /tmp/wtw_ver.txt {UPDATE_URL_VER}"
         os.system(cmd)
         
@@ -462,12 +484,9 @@ class WhatToWatchScreen(Screen):
     def do_update(self, confirm):
         if confirm:
             self["status_label"].setText("Updating plugin...")
-            # Download new plugin.py
             cmd = f"wget -qO {PLUGIN_FILE_PATH} {UPDATE_URL_PY}"
             os.system(cmd)
-            
             self.session.open(MessageBox, "Update successful! Restarting GUI...", MessageBox.TYPE_INFO, timeout=3)
-            # Force Restart
             import time
             time.sleep(2)
             quitMainloop(3)
@@ -506,10 +525,12 @@ class WhatToWatchScreen(Screen):
         self["info_bar"].setText(f"Sort: {self.sort_mode} | Cat: {self.current_filter or 'All'} | Sat: {sat_txt}")
 
     def zap_channel(self):
+        """Play channel in background without closing plugin."""
         current_selection = self["event_list"].getCurrent()
         if current_selection:
+            # Play the service
             self.session.nav.playService(eServiceReference(current_selection[0][4]))
-            self.close()
+            # Do NOT close self.close()
 
 def main(session, **kwargs):
     session.open(WhatToWatchScreen)
