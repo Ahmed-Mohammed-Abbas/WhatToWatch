@@ -1,9 +1,10 @@
 # ============================================================================
 #  Plugin: What to Watch
 #  Author: reali22
-#  Version: 1.0
+#  Version: 1.5
 #  Description: Advanced EPG Browser with categorization, satellite filtering,
-#               smart deduplication, Auto-Update, and Translation.
+#               smart deduplication, Auto-Update, Preview Mode, 
+#               STRICT Adult Filtering, and EPG Button UI.
 #  GitHub: https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch
 # ============================================================================
 
@@ -13,7 +14,6 @@ import re
 import json
 from sys import version_info
 
-# Python 2/3 Compatibility for HTTP Requests
 if version_info.major == 3:
     from urllib.request import Request, urlopen
     from urllib.parse import quote
@@ -33,7 +33,7 @@ from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
 # --- Constants ---
-VERSION = "1.0"
+VERSION = "1.5"
 AUTHOR = "reali22"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
@@ -47,24 +47,15 @@ ADULT_KEYWORDS = [
     "xy mix", "xy plus", "man-x", "evilangel", "daring", "lovesuite", "babe"
 ]
 
-# --- 1. Helper Functions (Translation & Setup) ---
+# --- 1. Helper Functions ---
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
 
 def translate_text(text, target_lang='en'):
-    """
-    Translates text using Google Translate API (Free).
-    Checks for Arabic content first to skip unnecessary requests.
-    """
     if not text or len(text) < 2: return "No description available."
-    
-    # Check if text is already Arabic (Unicode range 0600-06FF)
-    # If found, return original text immediately.
-    if any('\u0600' <= char <= '\u06FF' for char in text[:30]):
-        return text
+    if any('\u0600' <= char <= '\u06FF' for char in text[:30]): return text
 
-    # Prepare URL
     encoded_text = quote(text)
     url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=%s&dt=t&q=%s" % (target_lang, encoded_text)
     
@@ -75,12 +66,10 @@ def translate_text(text, target_lang='en'):
         response = urlopen(req, timeout=5)
         data = response.read().decode('utf-8')
         json_data = json.loads(data)
-        
         translation = ""
         if json_data and isinstance(json_data, list):
             for item in json_data[0]:
-                if item and len(item) > 0:
-                    translation += item[0]
+                if item and len(item) > 0: translation += item[0]
         return translation
     except Exception as e:
         return f"Translation Failed: {str(e)}\n\nOriginal: {text}"
@@ -108,38 +97,23 @@ def is_adult_content(text):
     return False
 
 def classify_by_channel_name(channel_name):
-    # LAYER 1: Channel Name Check
     if is_adult_content(channel_name): return None, None
     name_lower = channel_name.lower()
 
-    # === SPORTS (0x4) ===
     if any(k in name_lower for k in ["sport", "soccer", "football", "kora", "league", "racing", "f1", "wwe", "ufc", "fight", "box", "arena", "calcio", "match", "dazn", "motogp", "nba", "tennis", "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nile sport", "arryadia", "kuwait sport", "saudi sport", "euro", "bt sport", "sky sport", "polstat sport", "canal+ sport", "tsn", "supersport", "eleven"]):
         return "Sports", 0x4
-
-    # === MOVIES (0x1) ===
     if any(k in name_lower for k in ["movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere", "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "osn movies", "amc", "fox movies", "fox action", "fox thriller", "paramount", "tcm", "action", "thriller", "horror", "comedy", "sci-fi", "canal+ cinema", "cine+", "filmbox", "warnertv", "sony max"]):
         return "Movies", 0x1
-
-    # === KIDS (0x5) ===
     if any(k in name_lower for k in ["kid", "child", "cartoon", "toon", "anime", "anim", "junior", "disney", "nick", "boomerang", "cbeebies", "baraem", "jeem", "ajyal", "spacetoon", "mbc 3", "cn", "pogo", "majid", "dreamworks", "baby", "duck", "fix&foxi", "kika", "super rtl", "gulli", "clan"]):
         return "Kids", 0x5
-
-    # === NEWS (0x2) ===
     if any(k in name_lower for k in ["news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", "bloomberg", "weather", "trt", "dw", "lbc", "mtv lebanon", "skynews", "france 24", "russia today", "rt ", "euronews", "tagesschau", "n24", "welt", "i24", "al araby", "alghad", "asharq", "watania", "al ekhbariya"]):
         return "News", 0x2
-
-    # === DOCUMENTARY (0x9) ===
     if any(k in name_lower for k in ["doc", "history", "historia", "nat geo", "wild", "planet", "earth", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "travel", "cook", "food", "geographic", "arte", "phoenix", "zdfinfo", "alpha", "explorer", "viasat explore", "viasat history"]):
         return "Documentary", 0x9
-
-    # === MUSIC (0x6) ===
     if any(k in name_lower for k in ["music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", "mazzika", "rotana clip", "rotana music", "wanasah", "aghani", "arabica", "4fun", "eska", "polo", "vivia", "nrj", "kiss", "dance", "hits"]):
         return "Music", 0x6
-
-    # === SHOWS (0x3) ===
     if any(k in name_lower for k in ["drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", "entertainment", "novelas", "soaps", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "mbc iraq", "rotana khalijia", "rotana drama", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "bbc one", "bbc two", "itv", "channel 4", "rai 1", "rai 2", "canale 5", "italia 1", "tf1", "m6", "antena 3", "zdf", "rtl", "sat.1", "pro7", "vox", "kabel 1"]):
         return "Shows", 0x3
-
     return "General/Other", 0x0
 
 def clean_channel_name_fuzzy(name):
@@ -191,7 +165,6 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     
     progress_str = ""
     progress_color = 0xFFFFFF 
-    
     if show_progress and duration > 0:
         current_time = int(time.time())
         if start_time <= current_time < (start_time + duration):
@@ -217,7 +190,7 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
     results = []
     MAX_CHANNELS = 4000
     channel_count = 0
-    unique_channels = {} # Key: normalized_name, Value: (entry_data, is_hd)
+    unique_channels = {} 
 
     try:
         epg_cache = eEPGCache.getInstance()
@@ -277,7 +250,6 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
                     event_name = event.getEventName()
                     if not event_name: continue
                     
-                    # LAYER 2 CHECK: Program Name Adult Filter
                     if is_adult_content(event_name): continue
 
                     clean_ch = clean_channel_name_fuzzy(s_name)
@@ -288,7 +260,6 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
                     
                     entry = build_list_entry(category, s_name, sat_info, event_name, s_ref, nibble, start_time, duration, show_prog)
                     
-                    # HD Priority Deduplication
                     if clean_ch in unique_channels:
                         existing_entry, existing_is_hd = unique_channels[clean_ch]
                         if is_hd and not existing_is_hd:
@@ -304,20 +275,23 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
 
 # --- 6. The GUI Screen ---
 class WhatToWatchScreen(Screen):
+    # Added EPG Button Layout (5 buttons total)
     skin = f"""
         <screen position="center,center" size="800,600" title="What to Watch v{VERSION}">
             <widget name="status_label" position="10,10" size="780,40" font="Regular;22" halign="center" valign="center" foregroundColor="#00ff00" />
             <widget name="event_list" position="10,60" size="780,440" scrollbarMode="showOnDemand" />
             
             <ePixmap pixmap="skin_default/buttons/red.png" position="10,510" size="40,40" alphatest="on" />
-            <ePixmap pixmap="skin_default/buttons/green.png" position="200,510" size="40,40" alphatest="on" />
-            <ePixmap pixmap="skin_default/buttons/yellow.png" position="390,510" size="40,40" alphatest="on" />
-            <ePixmap pixmap="skin_default/buttons/blue.png" position="580,510" size="40,40" alphatest="on" />
+            <ePixmap pixmap="skin_default/buttons/green.png" position="165,510" size="40,40" alphatest="on" />
+            <ePixmap pixmap="skin_default/buttons/yellow.png" position="320,510" size="40,40" alphatest="on" />
+            <ePixmap pixmap="skin_default/buttons/blue.png" position="475,510" size="40,40" alphatest="on" />
+            <ePixmap pixmap="skin_default/buttons/key_epg.png" position="630,510" size="40,40" alphatest="on" />
             
-            <widget name="key_red" position="55,515" size="140,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_green" position="245,515" size="140,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_yellow" position="435,515" size="140,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_blue" position="625,515" size="165,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+            <widget name="key_red" position="55,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+            <widget name="key_green" position="210,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+            <widget name="key_yellow" position="365,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+            <widget name="key_blue" position="520,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+            <widget name="key_epg" position="675,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" text="Translate" />
             
             <widget name="info_bar" position="10,555" size="780,35" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" transparent="1" />
         </screen>
@@ -333,13 +307,16 @@ class WhatToWatchScreen(Screen):
         self["event_list"].l.setItemHeight(50)
         
         self["status_label"] = Label("Loading...")
+        
         self["key_red"] = Label("Time: Now")
         self["key_green"] = Label("Refresh")
         self["key_yellow"] = Label("Category")
         self["key_blue"] = Label("Options")
-        self["info_bar"] = Label("Press INFO to translate")
+        self["key_epg"] = Label("Translate") # Label for EPG Button
+        self["info_bar"] = Label("Press EPG/INFO to translate description")
 
-        self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions"], {
+        # Map both "info" and "epg" keys to the translation function
+        self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions", "InfoActions"], {
             "ok": self.zap_channel,
             "cancel": self.close,
             "red": self.toggle_time_filter,
@@ -347,7 +324,8 @@ class WhatToWatchScreen(Screen):
             "yellow": self.cycle_category,
             "blue": self.show_options_menu,
             "menu": self.show_sort_menu,
-            "info": self.show_translated_info,  # INFO/EPG Button
+            "info": self.show_translated_info,  
+            "epg": self.show_translated_info,   # <--- Added EPG Mapping
         }, -1)
 
         self.full_list = []
@@ -390,8 +368,7 @@ class WhatToWatchScreen(Screen):
         current_selection = self["event_list"].getCurrent()
         if not current_selection: return
 
-        # Payload structure from build_list_entry:
-        # [0]=payload: (Category, Channel, Sat, EventName, Ref, Start, Dur)
+        # Payload structure: (Cat, Channel, Sat, EventName, Ref, Start, Dur)
         payload = current_selection[0]
         event_name = payload[3]
         service_ref = payload[4]
