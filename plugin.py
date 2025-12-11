@@ -2,8 +2,7 @@
 #  Plugin: What to Watch
 #  Author: reali22
 #  Version: 1.0
-#  Description: Advanced EPG Browser with categorization, satellite filtering,
-#               smart deduplication, Auto-Update, and Preview Mode.
+#  Description: Advanced EPG Browser with HD-Priority Deduplication.
 #  GitHub: https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch
 # ============================================================================
 
@@ -45,14 +44,11 @@ def get_genre_icon(nibble):
     if os.path.exists(default_path): return loadPNG(default_path)
     return None
 
-# --- 2. Enhanced Categorization (LyngSat Based) ---
+# --- 2. Advanced Categorization ---
 def classify_by_channel_name(channel_name):
-    """
-    Categorizes channels using a comprehensive list based on Satellite lineups (7W, 13E, 19.2E).
-    """
     name_lower = channel_name.lower()
     
-    # === ADULT FILTER (Safety) ===
+    # === ADULT FILTER ===
     adult_keywords = [
         "xxx", "18+", "+18", "adult", "porn", "sex", "barely", "hustler", 
         "playboy", "penthouse", "blue movie", "redlight", "babes", "brazzers", 
@@ -64,19 +60,17 @@ def classify_by_channel_name(channel_name):
              return None, None
 
     # === SPORTS (0x4) ===
-    # Priority check for major networks
     if any(k in name_lower for k in [
         "sport", "soccer", "football", "kora", "league", "racing", "f1", "wwe", "ufc", 
         "fight", "box", "arena", "calcio", "match", "dazn", "motogp", "nba", "tennis",
-        "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", 
+        "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "ontime",
         "nile sport", "arryadia", "kuwait sport", "saudi sport", "oman sport", "bahrain sport",
         "euro", "bt sport", "sky sport", "polstat sport", "canal+ sport", "ziggo sport", 
-        "tsn", "supersport", "eleven"
+        "tsn", "supersport", "eleven", "premier"
     ]):
         return "Sports", 0x4
 
     # === MOVIES (0x1) ===
-    # Specific Movie Networks & Genres
     if any(k in name_lower for k in [
         "movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere",
         "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood",
@@ -122,8 +116,7 @@ def classify_by_channel_name(channel_name):
     ]):
         return "Music", 0x6
 
-    # === SHOWS / SERIES (0x3) ===
-    # General Entertainment Channels
+    # === SHOWS (0x3) ===
     if any(k in name_lower for k in [
         "drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", 
         "entertainment", "novelas", "soaps",
@@ -138,15 +131,18 @@ def classify_by_channel_name(channel_name):
     return "General/Other", 0x0
 
 def clean_channel_name_fuzzy(name):
-    """Clean channel name for smart deduplication."""
+    """
+    Normalizes channel name for matching.
+    'ONTIME SPORTS HD' -> 'ontimesports'
+    'ONTIME SPORTS'    -> 'ontimesports'
+    """
     n = name.lower()
+    # Remove technical suffixes
     n = re.sub(r'\b(hd|sd|fhd|4k|uhd|hevc)\b', '', n)
+    # Remove timeshift but keep main numbers (e.g. keep " 1", " 2")
     n = re.sub(r'\+\d+', '', n) 
-    return normalize_string(n)
-
-def normalize_string(text):
-    if not text: return ""
-    return re.sub(r'[\W_]+', '', text.lower())
+    # Remove all non-alphanumeric chars (spaces, brackets)
+    return re.sub(r'[\W_]+', '', n)
 
 # --- 3. Satellite Logic ---
 def get_sat_position(ref_str):
@@ -191,7 +187,6 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     display_name = f"{channel_name} ({sat_info})" if sat_info else channel_name
     
-    # Calculate Percentage
     progress_str = ""
     progress_color = 0xFFFFFF 
     
@@ -201,9 +196,8 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             percent = int(((current_time - start_time) / float(duration)) * 100)
             if percent > 100: percent = 100
             progress_str = f"({percent}%)"
-            
-            if percent > 85: progress_color = 0xFF4040 # Red
-            elif percent > 10: progress_color = 0x00FF00 # Green
+            if percent > 85: progress_color = 0xFF4040 
+            elif percent > 10: progress_color = 0x00FF00
     
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
@@ -216,12 +210,14 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     ]
     return res
 
-# --- 5. Backend Logic ---
+# --- 5. Backend Logic (HD Priority Deduplication) ---
 def get_categorized_events_list(use_favorites=False, time_offset=0):
-    results = []
     MAX_CHANNELS = 4000
     channel_count = 0
-    seen_programs = set()
+    
+    # Dictionary to ensure unique channels (HD Priority)
+    # Key: normalized_name -> Value: (entry_data, is_hd_flag, has_valid_event_flag)
+    unique_channels = {}
 
     try:
         epg_cache = eEPGCache.getInstance()
@@ -234,7 +230,6 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
         
         bouquet_root = eServiceReference(ref_str)
         bouquet_list = service_handler.list(bouquet_root)
-        
         if not bouquet_list: return []
         bouquet_content = bouquet_list.getContent("SN", True)
         if not bouquet_content: return []
@@ -244,7 +239,6 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
         current_time = int(time.time())
         target_timestamp = current_time + time_offset
         lookup_time = -1 if time_offset == 0 else target_timestamp
-        
         show_prog = (time_offset == 0)
 
         for bouquet_entry in bouquets_to_scan:
@@ -283,26 +277,35 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
                     event_name = event.getEventName()
                     if not event_name: continue
                     
+                    # --- HD PRIORITY LOGIC ---
                     clean_ch = clean_channel_name_fuzzy(s_name)
-                    clean_evt = normalize_string(event_name)
+                    is_hd = "hd" in s_name.lower()
+                    
                     start_time = event.getBeginTime()
-                    time_block = int(start_time / 900) 
-                    
-                    unique_key = f"{clean_ch}_{clean_evt}_{time_block}"
-                    if unique_key in seen_programs:
-                        continue 
-                    seen_programs.add(unique_key)
-                    
                     duration = event.getDuration()
                     
+                    # Create the list entry
                     entry = build_list_entry(category, s_name, sat_info, event_name, s_ref, nibble, start_time, duration, show_prog)
-                    results.append(entry)
+                    
+                    # Deduplication Decision
+                    if clean_ch in unique_channels:
+                        # Conflict! A similar channel exists. Should we replace it?
+                        existing_entry, existing_is_hd = unique_channels[clean_ch]
+                        
+                        # Replace if NEW is HD and OLD is SD
+                        if is_hd and not existing_is_hd:
+                            unique_channels[clean_ch] = (entry, is_hd)
+                        # Keep existing otherwise (First found is usually better if same quality)
+                    else:
+                        # New channel found
+                        unique_channels[clean_ch] = (entry, is_hd)
 
                 except: continue
 
     except: return []
 
-    return results
+    # Convert dictionary back to list
+    return [val[0] for val in unique_channels.values()]
 
 # --- 6. The GUI Screen ---
 class WhatToWatchScreen(Screen):
@@ -525,12 +528,10 @@ class WhatToWatchScreen(Screen):
         self["info_bar"].setText(f"Sort: {self.sort_mode} | Cat: {self.current_filter or 'All'} | Sat: {sat_txt}")
 
     def zap_channel(self):
-        """Play channel in background without closing plugin."""
         current_selection = self["event_list"].getCurrent()
         if current_selection:
-            # Play the service
             self.session.nav.playService(eServiceReference(current_selection[0][4]))
-            # Do NOT close self.close()
+            # Window stays open (Preview Mode)
 
 def main(session, **kwargs):
     session.open(WhatToWatchScreen)
