@@ -4,7 +4,7 @@
 #  Version: 1.0
 #  Description: Advanced EPG Browser with categorization, satellite filtering,
 #               smart deduplication, Auto-Update, Preview Mode, 
-#               STRICT Adult Filtering, and EPG Button UI.
+#               STRICT Adult Filtering, and EPG Translation.
 #  GitHub: https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch
 # ============================================================================
 
@@ -275,7 +275,6 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
 
 # --- 6. The GUI Screen ---
 class WhatToWatchScreen(Screen):
-    # Added EPG Button Layout (5 buttons total)
     skin = f"""
         <screen position="center,center" size="800,600" title="What to Watch v{VERSION}">
             <widget name="status_label" position="10,10" size="780,40" font="Regular;22" halign="center" valign="center" foregroundColor="#00ff00" />
@@ -291,7 +290,7 @@ class WhatToWatchScreen(Screen):
             <widget name="key_green" position="210,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
             <widget name="key_yellow" position="365,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
             <widget name="key_blue" position="520,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_epg" position="675,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" text="Translate" />
+            <widget name="key_epg" position="675,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" text="EPG Translate" />
             
             <widget name="info_bar" position="10,555" size="780,35" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" transparent="1" />
         </screen>
@@ -312,10 +311,9 @@ class WhatToWatchScreen(Screen):
         self["key_green"] = Label("Refresh")
         self["key_yellow"] = Label("Category")
         self["key_blue"] = Label("Options")
-        self["key_epg"] = Label("Translate") # Label for EPG Button
+        self["key_epg"] = Label("EPG Translate") 
         self["info_bar"] = Label("Press EPG/INFO to translate description")
 
-        # Map both "info" and "epg" keys to the translation function
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions", "InfoActions"], {
             "ok": self.zap_channel,
             "cancel": self.close,
@@ -325,7 +323,7 @@ class WhatToWatchScreen(Screen):
             "blue": self.show_options_menu,
             "menu": self.show_sort_menu,
             "info": self.show_translated_info,  
-            "epg": self.show_translated_info,   # <--- Added EPG Mapping
+            "epg": self.show_translated_info,   
         }, -1)
 
         self.full_list = []
@@ -368,17 +366,15 @@ class WhatToWatchScreen(Screen):
         current_selection = self["event_list"].getCurrent()
         if not current_selection: return
 
-        # Payload structure: (Cat, Channel, Sat, EventName, Ref, Start, Dur)
         payload = current_selection[0]
         event_name = payload[3]
         service_ref = payload[4]
         start_time = payload[5]
         
         epg_cache = eEPGCache.getInstance()
-        text_to_translate = event_name # Default
+        text_to_translate = event_name
         
         try:
-            # Fetch FULL description for specific time
             event = epg_cache.lookupEventTime(eServiceReference(service_ref), start_time)
             if event:
                 short = event.getShortDescription() or ""
@@ -389,7 +385,7 @@ class WhatToWatchScreen(Screen):
         except: pass
 
         self.session.open(MessageBox, "Translating...", type=MessageBox.TYPE_INFO, timeout=1)
-        translated = translate_text(text_to_translate, target_lang='en') # Change 'en' to 'ar' if preferred
+        translated = translate_text(text_to_translate, target_lang='en') 
         self.session.open(MessageBox, translated, type=MessageBox.TYPE_INFO)
 
     def toggle_time_filter(self):
