@@ -1,3 +1,12 @@
+# ============================================================================
+#  Plugin: What to Watch
+#  Author: reali22
+#  Version: 1.0
+#  Description: Advanced EPG Browser with categorization, satellite filtering,
+#               smart deduplication, and Auto-Update.
+#  GitHub: https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch
+# ============================================================================
+
 import os
 import time
 import re
@@ -8,12 +17,20 @@ from Components.ActionMap import ActionMap
 from Components.Label import Label
 from Components.MenuList import MenuList
 from Components.MultiContent import MultiContentEntryText, MultiContentEntryPixmapAlphaTest
-from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, loadPNG
+from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, loadPNG, quitMainloop
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
+# --- Constants ---
+VERSION = "1.0"
+AUTHOR = "reali22"
+UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
+UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
+
 # --- 1. Setup Paths & Icons ---
+# Standard Enigma2 path resolution
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
+PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
 
 def get_genre_icon(nibble):
@@ -33,7 +50,7 @@ def get_genre_icon(nibble):
 def classify_by_channel_name(channel_name):
     name_lower = channel_name.lower()
     
-    # === ADULT FILTER ===
+    # === ADULT FILTER (Safety) ===
     adult_keywords = [
         "xxx", "18+", "+18", "adult", "porn", "sex", "barely", "hustler", 
         "playboy", "penthouse", "blue movie", "redlight", "babes", "brazzers", 
@@ -81,6 +98,7 @@ def classify_by_channel_name(channel_name):
     return "General/Other", 0x0
 
 def clean_channel_name_fuzzy(name):
+    """Clean channel name for smart deduplication."""
     n = name.lower()
     n = re.sub(r'\b(hd|sd|fhd|4k|uhd|hevc)\b', '', n)
     n = re.sub(r'\+\d+', '', n) 
@@ -263,8 +281,9 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
 
 # --- 6. The GUI Screen ---
 class WhatToWatchScreen(Screen):
-    skin = """
-        <screen position="center,center" size="800,600" title="What to Watch">
+    # Updated Title to include Version
+    skin = f"""
+        <screen position="center,center" size="800,600" title="What to Watch v{VERSION}">
             <widget name="status_label" position="10,10" size="780,40" font="Regular;22" halign="center" valign="center" foregroundColor="#00ff00" />
             <widget name="event_list" position="10,60" size="780,440" scrollbarMode="showOnDemand" />
             
@@ -403,6 +422,7 @@ class WhatToWatchScreen(Screen):
             ("Toggle Source (Fav/All)", "toggle_source"),
             ("Filter by Satellite", "filter_sat"),
             ("Sort By...", "sort_menu"),
+            ("Check for Updates", "update"),
         ]
         self.session.openWithCallback(self.options_menu_callback, ChoiceBox, title="Options", list=menu_list)
 
@@ -417,6 +437,40 @@ class WhatToWatchScreen(Screen):
             self.show_sat_menu()
         elif action == "sort_menu":
             self.show_sort_menu()
+        elif action == "update":
+            self.check_updates()
+
+    # --- AUTO UPDATE LOGIC ---
+    def check_updates(self):
+        self["status_label"].setText("Checking for updates...")
+        # Use wget to fetch version.txt to /tmp
+        cmd = f"wget -qO /tmp/wtw_ver.txt {UPDATE_URL_VER}"
+        os.system(cmd)
+        
+        if os.path.exists("/tmp/wtw_ver.txt"):
+            with open("/tmp/wtw_ver.txt", "r") as f:
+                remote_ver = f.read().strip()
+            
+            if remote_ver > VERSION:
+                self.session.openWithCallback(self.do_update, MessageBox, f"New version {remote_ver} available!\nUpdate now?", MessageBox.TYPE_YESNO)
+            else:
+                self.session.open(MessageBox, "You have the latest version.", MessageBox.TYPE_INFO, timeout=3)
+                self["status_label"].setText("Version is up to date.")
+        else:
+            self.session.open(MessageBox, "Update check failed (No Internet?)", MessageBox.TYPE_ERROR)
+
+    def do_update(self, confirm):
+        if confirm:
+            self["status_label"].setText("Updating plugin...")
+            # Download new plugin.py
+            cmd = f"wget -qO {PLUGIN_FILE_PATH} {UPDATE_URL_PY}"
+            os.system(cmd)
+            
+            self.session.open(MessageBox, "Update successful! Restarting GUI...", MessageBox.TYPE_INFO, timeout=3)
+            # Force Restart
+            import time
+            time.sleep(2)
+            quitMainloop(3)
 
     def show_sat_menu(self):
         if not self.full_list: return
@@ -461,4 +515,12 @@ def main(session, **kwargs):
     session.open(WhatToWatchScreen)
 
 def Plugins(**kwargs):
-    return [PluginDescriptor(name="What to Watch", description="Smart EPG Browser", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
+    return [
+        PluginDescriptor(
+            name=f"What to Watch v{VERSION}", 
+            description=f"Smart EPG Browser v{VERSION} by {AUTHOR}", 
+            where=PluginDescriptor.WHERE_PLUGINMENU, 
+            icon="plugin.png", 
+            fnc=main
+        )
+    ]
