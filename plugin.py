@@ -52,7 +52,7 @@ PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
 
-def translate_text(text, target_lang='en'):
+def translate_text(text, target_lang='ar'):
     if not text or len(text) < 2: return "No description available."
     if any('\u0600' <= char <= '\u06FF' for char in text[:30]): return text
 
