@@ -1,10 +1,10 @@
 # ============================================================================
 #  Plugin: What to Watch
 #  Author: reali22
-#  Version: 1.0
+#  Version: 1.7
 #  Description: Advanced EPG Browser with categorization, satellite filtering,
 #               smart deduplication, Auto-Update, Preview Mode, 
-#               STRICT Adult Filtering, and EPG Translation.
+#               STRICT Adult Filtering, EPG Translation, and Optimized Sorting.
 #  GitHub: https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch
 # ============================================================================
 
@@ -33,7 +33,7 @@ from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
 # --- Constants ---
-VERSION = "1.0"
+VERSION = "1.7"
 AUTHOR = "reali22"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
@@ -52,7 +52,7 @@ PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
 
-def translate_text(text, target_lang='ar'):
+def translate_text(text, target_lang='en'):
     if not text or len(text) < 2: return "No description available."
     if any('\u0600' <= char <= '\u06FF' for char in text[:30]): return text
 
@@ -97,23 +97,41 @@ def is_adult_content(text):
     return False
 
 def classify_by_channel_name(channel_name):
+    """
+    Categorization Logic v1.7
+    Prioritizes News/Docs before Kids to prevent misclassification of CNN/AnimalPlanet.
+    """
     if is_adult_content(channel_name): return None, None
     name_lower = channel_name.lower()
 
-    if any(k in name_lower for k in ["sport", "soccer", "football", "kora", "league", "racing", "f1", "wwe", "ufc", "fight", "box", "arena", "calcio", "match", "dazn", "motogp", "nba", "tennis", "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nile sport", "arryadia", "kuwait sport", "saudi sport", "euro", "bt sport", "sky sport", "polstat sport", "canal+ sport", "tsn", "supersport", "eleven"]):
-        return "Sports", 0x4
-    if any(k in name_lower for k in ["movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere", "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "osn movies", "amc", "fox movies", "fox action", "fox thriller", "paramount", "tcm", "action", "thriller", "horror", "comedy", "sci-fi", "canal+ cinema", "cine+", "filmbox", "warnertv", "sony max"]):
-        return "Movies", 0x1
-    if any(k in name_lower for k in ["kid", "child", "cartoon", "toon", "anime", "anim", "junior", "disney", "nick", "boomerang", "cbeebies", "baraem", "jeem", "ajyal", "spacetoon", "mbc 3", "cn", "pogo", "majid", "dreamworks", "baby", "duck", "fix&foxi", "kika", "super rtl", "gulli", "clan"]):
-        return "Kids", 0x5
+    # 1. NEWS (Checked FIRST to catch CNN, CNBC before 'cn' keyword in Kids)
     if any(k in name_lower for k in ["news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", "bloomberg", "weather", "trt", "dw", "lbc", "mtv lebanon", "skynews", "france 24", "russia today", "rt ", "euronews", "tagesschau", "n24", "welt", "i24", "al araby", "alghad", "asharq", "watania", "al ekhbariya"]):
         return "News", 0x2
+
+    # 2. DOCUMENTARY (Checked early to catch 'Animal Planet' before 'anim' keyword in Kids)
     if any(k in name_lower for k in ["doc", "history", "historia", "nat geo", "wild", "planet", "earth", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "travel", "cook", "food", "geographic", "arte", "phoenix", "zdfinfo", "alpha", "explorer", "viasat explore", "viasat history"]):
         return "Documentary", 0x9
+
+    # 3. SPORTS
+    if any(k in name_lower for k in ["sport", "soccer", "football", "kora", "league", "racing", "f1", "wwe", "ufc", "fight", "box", "arena", "calcio", "match", "dazn", "motogp", "nba", "tennis", "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nile sport", "arryadia", "kuwait sport", "saudi sport", "euro", "bt sport", "sky sport", "polstat sport", "canal+ sport", "tsn", "supersport", "eleven"]):
+        return "Sports", 0x4
+
+    # 4. MOVIES
+    if any(k in name_lower for k in ["movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere", "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "osn movies", "amc", "fox movies", "fox action", "fox thriller", "paramount", "tcm", "action", "thriller", "horror", "comedy", "sci-fi", "canal+ cinema", "cine+", "filmbox", "warnertv", "sony max"]):
+        return "Movies", 0x1
+
+    # 5. KIDS (Replaced broad 'cn' with stricter checks)
+    if any(k in name_lower for k in ["kid", "child", "cartoon", "toon", "anime", "anim", "junior", "disney", "nick", "boomerang", "cbeebies", "baraem", "jeem", "ajyal", "spacetoon", "mbc 3", "cartoon network", "cn arabia", "cn ", "pogo", "majid", "dreamworks", "baby", "duck", "fix&foxi", "kika", "super rtl", "gulli", "clan"]):
+        return "Kids", 0x5
+
+    # 6. MUSIC
     if any(k in name_lower for k in ["music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", "mazzika", "rotana clip", "rotana music", "wanasah", "aghani", "arabica", "4fun", "eska", "polo", "vivia", "nrj", "kiss", "dance", "hits"]):
         return "Music", 0x6
+
+    # 7. SHOWS
     if any(k in name_lower for k in ["drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", "entertainment", "novelas", "soaps", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "mbc iraq", "rotana khalijia", "rotana drama", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "bbc one", "bbc two", "itv", "channel 4", "rai 1", "rai 2", "canale 5", "italia 1", "tf1", "m6", "antena 3", "zdf", "rtl", "sat.1", "pro7", "vox", "kabel 1"]):
         return "Shows", 0x3
+
     return "General/Other", 0x0
 
 def clean_channel_name_fuzzy(name):
