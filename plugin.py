@@ -2,13 +2,25 @@
 #  Plugin: What to Watch
 #  Author: reali22
 #  Version: 1.0
-#  Description: Advanced EPG Browser with HD-Priority Deduplication.
+#  Description: Advanced EPG Browser with categorization, satellite filtering,
+#               smart deduplication, Auto-Update, and Translation.
 #  GitHub: https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch
 # ============================================================================
 
 import os
 import time
 import re
+import json
+from sys import version_info
+
+# Python 2/3 Compatibility for HTTP Requests
+if version_info.major == 3:
+    from urllib.request import Request, urlopen
+    from urllib.parse import quote
+else:
+    from urllib2 import Request, urlopen
+    from urllib import quote
+
 from Screens.Screen import Screen
 from Screens.MessageBox import MessageBox
 from Screens.ChoiceBox import ChoiceBox
@@ -26,10 +38,52 @@ AUTHOR = "reali22"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
-# --- 1. Setup Paths & Icons ---
+# --- ADULT BLACKLIST ---
+ADULT_KEYWORDS = [
+    "xxx", "18+", "+18", "adult", "porn", "sex", "erotic", "nude", "hardcore", 
+    "barely", "hustler", "playboy", "penthouse", "blue movie", "redlight", 
+    "babes", "brazzers", "dorcel", "private", "vivid", "colours", "night", 
+    "hot", "love", "sct", "pink", "passion", "girls", "centoxcento", "exotic",
+    "xy mix", "xy plus", "man-x", "evilangel", "daring", "lovesuite", "babe"
+]
+
+# --- 1. Helper Functions (Translation & Setup) ---
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
+
+def translate_text(text, target_lang='en'):
+    """
+    Translates text using Google Translate API (Free).
+    Checks for Arabic content first to skip unnecessary requests.
+    """
+    if not text or len(text) < 2: return "No description available."
+    
+    # Check if text is already Arabic (Unicode range 0600-06FF)
+    # If found, return original text immediately.
+    if any('\u0600' <= char <= '\u06FF' for char in text[:30]):
+        return text
+
+    # Prepare URL
+    encoded_text = quote(text)
+    url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=%s&dt=t&q=%s" % (target_lang, encoded_text)
+    
+    req = Request(url)
+    req.add_header('User-Agent', 'Mozilla/5.0')
+    
+    try:
+        response = urlopen(req, timeout=5)
+        data = response.read().decode('utf-8')
+        json_data = json.loads(data)
+        
+        translation = ""
+        if json_data and isinstance(json_data, list):
+            for item in json_data[0]:
+                if item and len(item) > 0:
+                    translation += item[0]
+        return translation
+    except Exception as e:
+        return f"Translation Failed: {str(e)}\n\nOriginal: {text}"
 
 def get_genre_icon(nibble):
     icon_map = {
@@ -45,103 +99,53 @@ def get_genre_icon(nibble):
     return None
 
 # --- 2. Advanced Categorization ---
+def is_adult_content(text):
+    if not text: return False
+    text_lower = text.lower()
+    if any(k in text_lower for k in ADULT_KEYWORDS):
+        if "essex" not in text_lower and "sussex" not in text_lower:
+             return True
+    return False
+
 def classify_by_channel_name(channel_name):
+    # LAYER 1: Channel Name Check
+    if is_adult_content(channel_name): return None, None
     name_lower = channel_name.lower()
-    
-    # === ADULT FILTER ===
-    adult_keywords = [
-        "xxx", "18+", "+18", "adult", "porn", "sex", "barely", "hustler", 
-        "playboy", "penthouse", "blue movie", "redlight", "babes", "brazzers", 
-        "dorcel", "private", "vivid", "colours", "night", "hot", "love", 
-        "sct", "pink", "passion", "girls", "centoxcento", "exotic"
-    ]
-    if any(k in name_lower for k in adult_keywords):
-        if "essex" not in name_lower and "sussex" not in name_lower:
-             return None, None
 
     # === SPORTS (0x4) ===
-    if any(k in name_lower for k in [
-        "sport", "soccer", "football", "kora", "league", "racing", "f1", "wwe", "ufc", 
-        "fight", "box", "arena", "calcio", "match", "dazn", "motogp", "nba", "tennis",
-        "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "ontime",
-        "nile sport", "arryadia", "kuwait sport", "saudi sport", "oman sport", "bahrain sport",
-        "euro", "bt sport", "sky sport", "polstat sport", "canal+ sport", "ziggo sport", 
-        "tsn", "supersport", "eleven", "premier"
-    ]):
+    if any(k in name_lower for k in ["sport", "soccer", "football", "kora", "league", "racing", "f1", "wwe", "ufc", "fight", "box", "arena", "calcio", "match", "dazn", "motogp", "nba", "tennis", "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nile sport", "arryadia", "kuwait sport", "saudi sport", "euro", "bt sport", "sky sport", "polstat sport", "canal+ sport", "tsn", "supersport", "eleven"]):
         return "Sports", 0x4
 
     # === MOVIES (0x1) ===
-    if any(k in name_lower for k in [
-        "movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere",
-        "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood",
-        "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "b4u plus",
-        "osn movies", "amc", "fox movies", "fox action", "fox thriller", "paramount", "tcm",
-        "action", "thriller", "horror", "comedy", "sci-fi", "western", "romance",
-        "canal+ cinema", "cine+", "filmbox", "warnertv", "sony max"
-    ]):
+    if any(k in name_lower for k in ["movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere", "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "osn movies", "amc", "fox movies", "fox action", "fox thriller", "paramount", "tcm", "action", "thriller", "horror", "comedy", "sci-fi", "canal+ cinema", "cine+", "filmbox", "warnertv", "sony max"]):
         return "Movies", 0x1
 
     # === KIDS (0x5) ===
-    if any(k in name_lower for k in [
-        "kid", "child", "cartoon", "toon", "anime", "anim", "junior", "disney", 
-        "nick", "boomerang", "cbeebies", "baraem", "jeem", "ajyal", "spacetoon", 
-        "mbc 3", "cn", "pogo", "majid", "dreamworks", "baby", "duck", "fix&foxi",
-        "kika", "super rtl", "gulli", "clan"
-    ]):
+    if any(k in name_lower for k in ["kid", "child", "cartoon", "toon", "anime", "anim", "junior", "disney", "nick", "boomerang", "cbeebies", "baraem", "jeem", "ajyal", "spacetoon", "mbc 3", "cn", "pogo", "majid", "dreamworks", "baby", "duck", "fix&foxi", "kika", "super rtl", "gulli", "clan"]):
         return "Kids", 0x5
 
     # === NEWS (0x2) ===
-    if any(k in name_lower for k in [
-        "news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", 
-        "bloomberg", "weather", "trt", "dw", "lbc", "mtv lebanon", "skynews",
-        "france 24", "russia today", "rt ", "euronews", "tagesschau", "n24", "welt",
-        "i24", "al araby", "alghad", "asharq", "watania", "al ekhbariya"
-    ]):
+    if any(k in name_lower for k in ["news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", "bloomberg", "weather", "trt", "dw", "lbc", "mtv lebanon", "skynews", "france 24", "russia today", "rt ", "euronews", "tagesschau", "n24", "welt", "i24", "al araby", "alghad", "asharq", "watania", "al ekhbariya"]):
         return "News", 0x2
 
     # === DOCUMENTARY (0x9) ===
-    if any(k in name_lower for k in [
-        "doc", "history", "historia", "nat geo", "wild", "planet", "earth", 
-        "animal", "science", "investigation", "crime", "discovery", "tlc", 
-        "quest", "travel", "cook", "food", "geographic", "arte", "phoenix", 
-        "zdfinfo", "alpha", "explorer", "viasat explore", "viasat history"
-    ]):
+    if any(k in name_lower for k in ["doc", "history", "historia", "nat geo", "wild", "planet", "earth", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "travel", "cook", "food", "geographic", "arte", "phoenix", "zdfinfo", "alpha", "explorer", "viasat explore", "viasat history"]):
         return "Documentary", 0x9
 
     # === MUSIC (0x6) ===
-    if any(k in name_lower for k in [
-        "music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", 
-        "mazzika", "rotana clip", "rotana music", "wanasah", "aghani", "arabica",
-        "4fun", "eska", "polo", "vivia", "nrj", "kiss", "dance", "hits"
-    ]):
+    if any(k in name_lower for k in ["music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", "mazzika", "rotana clip", "rotana music", "wanasah", "aghani", "arabica", "4fun", "eska", "polo", "vivia", "nrj", "kiss", "dance", "hits"]):
         return "Music", 0x6
 
     # === SHOWS (0x3) ===
-    if any(k in name_lower for k in [
-        "drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", 
-        "entertainment", "novelas", "soaps",
-        "mbc 1", "mbc 4", "mbc drama", "mbc masr", "mbc iraq", "rotana khalijia", "rotana drama",
-        "zee alwan", "zee tv", "star plus", "colors", "sony",
-        "sky one", "sky atlantic", "bbc one", "bbc two", "itv", "channel 4",
-        "rai 1", "rai 2", "canale 5", "italia 1", "tf1", "m6", "antena 3",
-        "zdf", "rtl", "sat.1", "pro7", "vox", "kabel 1"
-    ]):
+    if any(k in name_lower for k in ["drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", "entertainment", "novelas", "soaps", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "mbc iraq", "rotana khalijia", "rotana drama", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "bbc one", "bbc two", "itv", "channel 4", "rai 1", "rai 2", "canale 5", "italia 1", "tf1", "m6", "antena 3", "zdf", "rtl", "sat.1", "pro7", "vox", "kabel 1"]):
         return "Shows", 0x3
 
     return "General/Other", 0x0
 
 def clean_channel_name_fuzzy(name):
-    """
-    Normalizes channel name for matching.
-    'ONTIME SPORTS HD' -> 'ontimesports'
-    'ONTIME SPORTS'    -> 'ontimesports'
-    """
     n = name.lower()
-    # Remove technical suffixes
     n = re.sub(r'\b(hd|sd|fhd|4k|uhd|hevc)\b', '', n)
-    # Remove timeshift but keep main numbers (e.g. keep " 1", " 2")
     n = re.sub(r'\+\d+', '', n) 
-    # Remove all non-alphanumeric chars (spaces, brackets)
     return re.sub(r'[\W_]+', '', n)
 
 # --- 3. Satellite Logic ---
@@ -165,14 +169,12 @@ def get_sat_position(ref_str):
 
 def scan_epg_import_dir():
     base_path = "/etc/epgimport/"
-    xml_count = 0
     if not os.path.exists(base_path): return 0
     try:
+        count = 0
         for root, dirs, files in os.walk(base_path):
-            for file in files:
-                if file.endswith(".xml") or file.endswith(".sources.xml"):
-                    xml_count += 1
-        return xml_count
+            count += len([f for f in files if f.endswith(".xml") or f.endswith(".sources.xml")])
+        return count
     except: return 0
 
 def check_epg_dat_exists():
@@ -210,14 +212,12 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     ]
     return res
 
-# --- 5. Backend Logic (HD Priority Deduplication) ---
+# --- 5. Backend Logic ---
 def get_categorized_events_list(use_favorites=False, time_offset=0):
+    results = []
     MAX_CHANNELS = 4000
     channel_count = 0
-    
-    # Dictionary to ensure unique channels (HD Priority)
-    # Key: normalized_name -> Value: (entry_data, is_hd_flag, has_valid_event_flag)
-    unique_channels = {}
+    unique_channels = {} # Key: normalized_name, Value: (entry_data, is_hd)
 
     try:
         epg_cache = eEPGCache.getInstance()
@@ -277,34 +277,29 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
                     event_name = event.getEventName()
                     if not event_name: continue
                     
-                    # --- HD PRIORITY LOGIC ---
+                    # LAYER 2 CHECK: Program Name Adult Filter
+                    if is_adult_content(event_name): continue
+
                     clean_ch = clean_channel_name_fuzzy(s_name)
                     is_hd = "hd" in s_name.lower()
                     
                     start_time = event.getBeginTime()
                     duration = event.getDuration()
                     
-                    # Create the list entry
                     entry = build_list_entry(category, s_name, sat_info, event_name, s_ref, nibble, start_time, duration, show_prog)
                     
-                    # Deduplication Decision
+                    # HD Priority Deduplication
                     if clean_ch in unique_channels:
-                        # Conflict! A similar channel exists. Should we replace it?
                         existing_entry, existing_is_hd = unique_channels[clean_ch]
-                        
-                        # Replace if NEW is HD and OLD is SD
                         if is_hd and not existing_is_hd:
                             unique_channels[clean_ch] = (entry, is_hd)
-                        # Keep existing otherwise (First found is usually better if same quality)
                     else:
-                        # New channel found
                         unique_channels[clean_ch] = (entry, is_hd)
 
                 except: continue
 
     except: return []
 
-    # Convert dictionary back to list
     return [val[0] for val in unique_channels.values()]
 
 # --- 6. The GUI Screen ---
@@ -338,14 +333,13 @@ class WhatToWatchScreen(Screen):
         self["event_list"].l.setItemHeight(50)
         
         self["status_label"] = Label("Loading...")
-        
         self["key_red"] = Label("Time: Now")
         self["key_green"] = Label("Refresh")
         self["key_yellow"] = Label("Category")
         self["key_blue"] = Label("Options")
-        self["info_bar"] = Label("")
+        self["info_bar"] = Label("Press INFO to translate")
 
-        self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions"], {
+        self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions"], {
             "ok": self.zap_channel,
             "cancel": self.close,
             "red": self.toggle_time_filter,
@@ -353,6 +347,7 @@ class WhatToWatchScreen(Screen):
             "yellow": self.cycle_category,
             "blue": self.show_options_menu,
             "menu": self.show_sort_menu,
+            "info": self.show_translated_info,  # INFO/EPG Button
         }, -1)
 
         self.full_list = []
@@ -373,10 +368,8 @@ class WhatToWatchScreen(Screen):
     def refresh_list(self):
         source_text = "Favorites" if self.use_favorites else "All Channels"
         time_label, time_offset = self.time_modes[self.time_mode_index]
-        
         self["status_label"].setText(f"Scanning {source_text} ({time_label})...")
         self["key_red"].setText(time_label)
-        
         self.full_list = get_categorized_events_list(self.use_favorites, time_offset)
         
         if not self.full_list:
@@ -391,6 +384,36 @@ class WhatToWatchScreen(Screen):
         self.current_sat_filter = None
         self.apply_sorting()
         self.apply_filter()
+
+    # --- TRANSLATION FEATURE ---
+    def show_translated_info(self):
+        current_selection = self["event_list"].getCurrent()
+        if not current_selection: return
+
+        # Payload structure from build_list_entry:
+        # [0]=payload: (Category, Channel, Sat, EventName, Ref, Start, Dur)
+        payload = current_selection[0]
+        event_name = payload[3]
+        service_ref = payload[4]
+        start_time = payload[5]
+        
+        epg_cache = eEPGCache.getInstance()
+        text_to_translate = event_name # Default
+        
+        try:
+            # Fetch FULL description for specific time
+            event = epg_cache.lookupEventTime(eServiceReference(service_ref), start_time)
+            if event:
+                short = event.getShortDescription() or ""
+                ext = event.getExtendedDescription() or ""
+                full = f"{event_name}\n\n{short}\n{ext}".strip()
+                if len(full) > len(event_name):
+                    text_to_translate = full
+        except: pass
+
+        self.session.open(MessageBox, "Translating...", type=MessageBox.TYPE_INFO, timeout=1)
+        translated = translate_text(text_to_translate, target_lang='en') # Change 'en' to 'ar' if preferred
+        self.session.open(MessageBox, translated, type=MessageBox.TYPE_INFO)
 
     def toggle_time_filter(self):
         self.time_mode_index = (self.time_mode_index + 1) % len(self.time_modes)
@@ -408,21 +431,16 @@ class WhatToWatchScreen(Screen):
         if not self.full_list: 
             self["event_list"].setList([])
             return
-            
         filtered = self.full_list
-        
         if self.current_filter:
             filtered = [e for e in filtered if e[0][0] == self.current_filter]
-
         if self.current_sat_filter:
             filtered = [e for e in filtered if e[0][2] == self.current_sat_filter]
-
         self["event_list"].setList(filtered)
         
         time_label = self.time_modes[self.time_mode_index][0]
         cat_txt = self.current_filter if self.current_filter else "All"
         sat_txt = self.current_sat_filter if self.current_sat_filter else "All Sats"
-        
         self["status_label"].setText(f"{cat_txt} | {sat_txt} | {len(filtered)} events")
         self.update_info_bar()
 
@@ -430,52 +448,36 @@ class WhatToWatchScreen(Screen):
         if not self.full_list: return
         categories = sorted(list(set([e[0][0] for e in self.full_list])))
         if not categories: return
-        
         if not self.current_filter:
             self.current_filter = categories[0]
         else:
             try:
                 idx = categories.index(self.current_filter)
-                if idx < len(categories) - 1:
-                    self.current_filter = categories[idx + 1]
-                else:
-                    self.current_filter = None
-            except ValueError:
-                self.current_filter = None
+                if idx < len(categories) - 1: self.current_filter = categories[idx + 1]
+                else: self.current_filter = None
+            except: self.current_filter = None
         self.apply_filter()
 
     def show_options_menu(self):
-        menu_list = [
-            ("Toggle Source (Fav/All)", "toggle_source"),
-            ("Filter by Satellite", "filter_sat"),
-            ("Sort By...", "sort_menu"),
-            ("Check for Updates", "update"),
-        ]
+        menu_list = [("Toggle Source (Fav/All)", "toggle_source"), ("Filter by Satellite", "filter_sat"), ("Sort By...", "sort_menu"), ("Check for Updates", "update")]
         self.session.openWithCallback(self.options_menu_callback, ChoiceBox, title="Options", list=menu_list)
 
     def options_menu_callback(self, choice):
         if choice is None: return
         action = choice[1]
-        
         if action == "toggle_source":
             self.use_favorites = not self.use_favorites
             self.refresh_list()
-        elif action == "filter_sat":
-            self.show_sat_menu()
-        elif action == "sort_menu":
-            self.show_sort_menu()
-        elif action == "update":
-            self.check_updates()
+        elif action == "filter_sat": self.show_sat_menu()
+        elif action == "sort_menu": self.show_sort_menu()
+        elif action == "update": self.check_updates()
 
     def check_updates(self):
         self["status_label"].setText("Checking for updates...")
         cmd = f"wget -qO /tmp/wtw_ver.txt {UPDATE_URL_VER}"
         os.system(cmd)
-        
         if os.path.exists("/tmp/wtw_ver.txt"):
-            with open("/tmp/wtw_ver.txt", "r") as f:
-                remote_ver = f.read().strip()
-            
+            with open("/tmp/wtw_ver.txt", "r") as f: remote_ver = f.read().strip()
             if remote_ver > VERSION:
                 self.session.openWithCallback(self.do_update, MessageBox, f"New version {remote_ver} available!\nUpdate now?", MessageBox.TYPE_YESNO)
             else:
@@ -490,27 +492,19 @@ class WhatToWatchScreen(Screen):
             cmd = f"wget -qO {PLUGIN_FILE_PATH} {UPDATE_URL_PY}"
             os.system(cmd)
             self.session.open(MessageBox, "Update successful! Restarting GUI...", MessageBox.TYPE_INFO, timeout=3)
-            import time
-            time.sleep(2)
-            quitMainloop(3)
+            import time; time.sleep(2); quitMainloop(3)
 
     def show_sat_menu(self):
         if not self.full_list: return
         sats = sorted(list(set([e[0][2] for e in self.full_list if e[0][2]])))
         if not sats: return
-        
         menu_list = [("All Satellites", "all")]
-        for s in sats:
-            menu_list.append((s, s))
-            
+        for s in sats: menu_list.append((s, s))
         self.session.openWithCallback(self.sat_menu_callback, ChoiceBox, title="Select Satellite", list=menu_list)
 
     def sat_menu_callback(self, choice):
         if choice is None: return
-        if choice[1] == "all":
-            self.current_sat_filter = None
-        else:
-            self.current_sat_filter = choice[1]
+        self.current_sat_filter = None if choice[1] == "all" else choice[1]
         self.apply_filter()
 
     def show_sort_menu(self):
@@ -531,18 +525,9 @@ class WhatToWatchScreen(Screen):
         current_selection = self["event_list"].getCurrent()
         if current_selection:
             self.session.nav.playService(eServiceReference(current_selection[0][4]))
-            # Window stays open (Preview Mode)
 
 def main(session, **kwargs):
     session.open(WhatToWatchScreen)
 
 def Plugins(**kwargs):
-    return [
-        PluginDescriptor(
-            name=f"What to Watch v{VERSION}", 
-            description=f"Smart EPG Browser v{VERSION} by {AUTHOR}", 
-            where=PluginDescriptor.WHERE_PLUGINMENU, 
-            icon="plugin.png", 
-            fnc=main
-        )
-    ]
+    return [PluginDescriptor(name=f"What to Watch v{VERSION}", description=f"Smart EPG Browser v{VERSION} by {AUTHOR}", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
