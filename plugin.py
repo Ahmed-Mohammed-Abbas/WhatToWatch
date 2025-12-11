@@ -4,7 +4,8 @@
 #  Version: 1.0
 #  Description: Advanced EPG Browser with categorization, satellite filtering,
 #               smart deduplication, Auto-Update, Preview Mode, 
-#               STRICT Adult Filtering, EPG Translation, and Optimized Sorting.
+#               STRICT Adult Filtering, EPG Translation, and 
+#               LARGER UI (HD Ready).
 #  GitHub: https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch
 # ============================================================================
 
@@ -97,41 +98,23 @@ def is_adult_content(text):
     return False
 
 def classify_by_channel_name(channel_name):
-    """
-    Categorization Logic v1.7
-    Prioritizes News/Docs before Kids to prevent misclassification of CNN/AnimalPlanet.
-    """
     if is_adult_content(channel_name): return None, None
     name_lower = channel_name.lower()
 
-    # 1. NEWS (Checked FIRST to catch CNN, CNBC before 'cn' keyword in Kids)
     if any(k in name_lower for k in ["news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", "bloomberg", "weather", "trt", "dw", "lbc", "mtv lebanon", "skynews", "france 24", "russia today", "rt ", "euronews", "tagesschau", "n24", "welt", "i24", "al araby", "alghad", "asharq", "watania", "al ekhbariya"]):
         return "News", 0x2
-
-    # 2. DOCUMENTARY (Checked early to catch 'Animal Planet' before 'anim' keyword in Kids)
     if any(k in name_lower for k in ["doc", "history", "historia", "nat geo", "wild", "planet", "earth", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "travel", "cook", "food", "geographic", "arte", "phoenix", "zdfinfo", "alpha", "explorer", "viasat explore", "viasat history"]):
         return "Documentary", 0x9
-
-    # 3. SPORTS
     if any(k in name_lower for k in ["sport", "soccer", "football", "kora", "league", "racing", "f1", "wwe", "ufc", "fight", "box", "arena", "calcio", "match", "dazn", "motogp", "nba", "tennis", "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nile sport", "arryadia", "kuwait sport", "saudi sport", "euro", "bt sport", "sky sport", "polstat sport", "canal+ sport", "tsn", "supersport", "eleven"]):
         return "Sports", 0x4
-
-    # 4. MOVIES
     if any(k in name_lower for k in ["movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere", "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "osn movies", "amc", "fox movies", "fox action", "fox thriller", "paramount", "tcm", "action", "thriller", "horror", "comedy", "sci-fi", "canal+ cinema", "cine+", "filmbox", "warnertv", "sony max"]):
         return "Movies", 0x1
-
-    # 5. KIDS (Replaced broad 'cn' with stricter checks)
     if any(k in name_lower for k in ["kid", "child", "cartoon", "toon", "anime", "anim", "junior", "disney", "nick", "boomerang", "cbeebies", "baraem", "jeem", "ajyal", "spacetoon", "mbc 3", "cartoon network", "cn arabia", "cn ", "pogo", "majid", "dreamworks", "baby", "duck", "fix&foxi", "kika", "super rtl", "gulli", "clan"]):
         return "Kids", 0x5
-
-    # 6. MUSIC
     if any(k in name_lower for k in ["music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", "mazzika", "rotana clip", "rotana music", "wanasah", "aghani", "arabica", "4fun", "eska", "polo", "vivia", "nrj", "kiss", "dance", "hits"]):
         return "Music", 0x6
-
-    # 7. SHOWS
     if any(k in name_lower for k in ["drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", "entertainment", "novelas", "soaps", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "mbc iraq", "rotana khalijia", "rotana drama", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "bbc one", "bbc two", "itv", "channel 4", "rai 1", "rai 2", "canale 5", "italia 1", "tf1", "m6", "antena 3", "zdf", "rtl", "sat.1", "pro7", "vox", "kabel 1"]):
         return "Shows", 0x3
-
     return "General/Other", 0x0
 
 def clean_channel_name_fuzzy(name):
@@ -175,7 +158,7 @@ def check_epg_dat_exists():
         if os.path.exists(p): return True, p
     return False, "Not Found"
 
-# --- 4. List Builder ---
+# --- 4. List Builder (Resized for 1080 Width) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
@@ -192,14 +175,25 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
+    # New Dimensions for 1080px Width
+    # Icon: 10, y=10, 50x50
+    # Text Start X: 70
+    # Text Width: 550 (was 280) -> Lots more space for titles
+    # Time X: 640
+    # Category X: 750
+    # Percentage X: 950
+    
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
-        MultiContentEntryPixmapAlphaTest(pos=(10, 5), size=(40, 40), png=icon_pixmap),
-        MultiContentEntryText(pos=(60, 2), size=(280, 24), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
-        MultiContentEntryText(pos=(60, 26), size=(280, 20), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
-        MultiContentEntryText(pos=(350, 2), size=(70, 48), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
-        MultiContentEntryText(pos=(430, 2), size=(130, 48), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=category_name, color=0xFFFF00, color_sel=0xFFFF00),
-        MultiContentEntryText(pos=(570, 2), size=(80, 48), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        MultiContentEntryPixmapAlphaTest(pos=(10, 7), size=(50, 50), png=icon_pixmap),
+        
+        # Larger Fonts: font=0 is now 28pt, font=1 is 24pt
+        MultiContentEntryText(pos=(70, 2), size=(550, 30), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
+        MultiContentEntryText(pos=(70, 34), size=(550, 28), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        
+        MultiContentEntryText(pos=(640, 2), size=(100, 60), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+        MultiContentEntryText(pos=(750, 2), size=(190, 60), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=category_name, color=0xFFFF00, color_sel=0xFFFF00),
+        MultiContentEntryText(pos=(950, 2), size=(100, 60), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
     ]
     return res
 
@@ -291,26 +285,27 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
 
     return [val[0] for val in unique_channels.values()]
 
-# --- 6. The GUI Screen ---
+# --- 6. The GUI Screen (Updated Dimensions & Fonts) ---
 class WhatToWatchScreen(Screen):
+    # Expanded Size: 1080x720
     skin = f"""
-        <screen position="center,center" size="800,600" title="What to Watch v{VERSION}">
-            <widget name="status_label" position="10,10" size="780,40" font="Regular;22" halign="center" valign="center" foregroundColor="#00ff00" />
-            <widget name="event_list" position="10,60" size="780,440" scrollbarMode="showOnDemand" />
+        <screen position="center,center" size="1080,720" title="What to Watch v{VERSION}">
+            <widget name="status_label" position="15,15" size="1050,50" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" />
+            <widget name="event_list" position="15,80" size="1050,560" scrollbarMode="showOnDemand" />
             
-            <ePixmap pixmap="skin_default/buttons/red.png" position="10,510" size="40,40" alphatest="on" />
-            <ePixmap pixmap="skin_default/buttons/green.png" position="165,510" size="40,40" alphatest="on" />
-            <ePixmap pixmap="skin_default/buttons/yellow.png" position="320,510" size="40,40" alphatest="on" />
-            <ePixmap pixmap="skin_default/buttons/blue.png" position="475,510" size="40,40" alphatest="on" />
-            <ePixmap pixmap="skin_default/buttons/key_epg.png" position="630,510" size="40,40" alphatest="on" />
+            <ePixmap pixmap="skin_default/buttons/red.png" position="15,650" size="40,40" alphatest="on" />
+            <ePixmap pixmap="skin_default/buttons/green.png" position="225,650" size="40,40" alphatest="on" />
+            <ePixmap pixmap="skin_default/buttons/yellow.png" position="435,650" size="40,40" alphatest="on" />
+            <ePixmap pixmap="skin_default/buttons/blue.png" position="645,650" size="40,40" alphatest="on" />
+            <ePixmap pixmap="skin_default/buttons/key_epg.png" position="855,650" size="40,40" alphatest="on" />
             
-            <widget name="key_red" position="55,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_green" position="210,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_yellow" position="365,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_blue" position="520,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_epg" position="675,515" size="110,30" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" text="EPG Translate" />
+            <widget name="key_red" position="60,655" size="150,35" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+            <widget name="key_green" position="270,655" size="150,35" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+            <widget name="key_yellow" position="480,655" size="150,35" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+            <widget name="key_blue" position="690,655" size="150,35" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+            <widget name="key_epg" position="900,655" size="160,35" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" text="EPG Translate" />
             
-            <widget name="info_bar" position="10,555" size="780,35" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" transparent="1" />
+            <widget name="info_bar" position="15,695" size="1050,25" font="Regular;20" halign="center" valign="center" foregroundColor="#ffff00" transparent="1" />
         </screen>
     """
 
@@ -319,9 +314,10 @@ class WhatToWatchScreen(Screen):
         self.session = session
         
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
-        self["event_list"].l.setFont(0, gFont("Regular", 22))
-        self["event_list"].l.setFont(1, gFont("Regular", 18))
-        self["event_list"].l.setItemHeight(50)
+        # Increased Font Sizes for List
+        self["event_list"].l.setFont(0, gFont("Regular", 28)) # Channel Name
+        self["event_list"].l.setFont(1, gFont("Regular", 24)) # Event/Time/Cat
+        self["event_list"].l.setItemHeight(65) # Taller Rows
         
         self["status_label"] = Label("Loading...")
         
