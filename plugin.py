@@ -2,10 +2,9 @@
 #  Plugin: What to Watch
 #  Author: reali22
 #  Version: 1.0
-#  Description: Advanced EPG Browser with categorization, satellite filtering,
-#               smart deduplication, Auto-Update, Preview Mode, 
-#               STRICT Adult Filtering, EPG Translation, and 
-#               LARGER UI (HD Ready).
+#  Description: Content-Aware EPG Browser (Channel + Event Categorization),
+#               Satellite Filtering, Smart Deduplication, Auto-Update, 
+#               Preview Mode, STRICT Adult Filtering, EPG Translation.
 #  GitHub: https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch
 # ============================================================================
 
@@ -39,13 +38,14 @@ AUTHOR = "reali22"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
-# --- ADULT BLACKLIST ---
+# --- ADULT BLACKLIST (Global) ---
 ADULT_KEYWORDS = [
     "xxx", "18+", "+18", "adult", "porn", "sex", "erotic", "nude", "hardcore", 
     "barely", "hustler", "playboy", "penthouse", "blue movie", "redlight", 
     "babes", "brazzers", "dorcel", "private", "vivid", "colours", "night", 
     "hot", "love", "sct", "pink", "passion", "girls", "centoxcento", "exotic",
-    "xy mix", "xy plus", "man-x", "evilangel", "daring", "lovesuite", "babe"
+    "xy mix", "xy plus", "man-x", "evilangel", "daring", "lovesuite", "babe",
+    "softcore", "uncensored", "after dark"
 ]
 
 # --- 1. Helper Functions ---
@@ -88,33 +88,73 @@ def get_genre_icon(nibble):
     if os.path.exists(default_path): return loadPNG(default_path)
     return None
 
-# --- 2. Advanced Categorization ---
+# --- 2. Advanced Categorization (Channel + Event) ---
 def is_adult_content(text):
     if not text: return False
     text_lower = text.lower()
     if any(k in text_lower for k in ADULT_KEYWORDS):
-        if "essex" not in text_lower and "sussex" not in text_lower:
+        if "essex" not in text_lower and "sussex" not in text_lower and "middlesex" not in text_lower:
              return True
     return False
 
-def classify_by_channel_name(channel_name):
-    if is_adult_content(channel_name): return None, None
-    name_lower = channel_name.lower()
+def classify_content(channel_name, event_name):
+    """
+    Decides category based on Channel Name AND Program Name.
+    Prioritizes Program Name for generic channels.
+    """
+    # 1. SAFETY CHECK (Both)
+    if is_adult_content(channel_name) or is_adult_content(event_name):
+        return None, None
 
-    if any(k in name_lower for k in ["news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", "bloomberg", "weather", "trt", "dw", "lbc", "mtv lebanon", "skynews", "france 24", "russia today", "rt ", "euronews", "tagesschau", "n24", "welt", "i24", "al araby", "alghad", "asharq", "watania", "al ekhbariya"]):
-        return "News", 0x2
-    if any(k in name_lower for k in ["doc", "history", "historia", "nat geo", "wild", "planet", "earth", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "travel", "cook", "food", "geographic", "arte", "phoenix", "zdfinfo", "alpha", "explorer", "viasat explore", "viasat history"]):
-        return "Documentary", 0x9
-    if any(k in name_lower for k in ["sport", "soccer", "football", "kora", "league", "racing", "f1", "wwe", "ufc", "fight", "box", "arena", "calcio", "match", "dazn", "motogp", "nba", "tennis", "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nile sport", "arryadia", "kuwait sport", "saudi sport", "euro", "bt sport", "sky sport", "polstat sport", "canal+ sport", "tsn", "supersport", "eleven"]):
-        return "Sports", 0x4
-    if any(k in name_lower for k in ["movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere", "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "osn movies", "amc", "fox movies", "fox action", "fox thriller", "paramount", "tcm", "action", "thriller", "horror", "comedy", "sci-fi", "canal+ cinema", "cine+", "filmbox", "warnertv", "sony max"]):
-        return "Movies", 0x1
-    if any(k in name_lower for k in ["kid", "child", "cartoon", "toon", "anime", "anim", "junior", "disney", "nick", "boomerang", "cbeebies", "baraem", "jeem", "ajyal", "spacetoon", "mbc 3", "cartoon network", "cn arabia", "cn ", "pogo", "majid", "dreamworks", "baby", "duck", "fix&foxi", "kika", "super rtl", "gulli", "clan"]):
+    ch_lower = channel_name.lower()
+    evt_lower = event_name.lower() if event_name else ""
+
+    # 2. KIDS (Strict Channel Check First)
+    if any(k in ch_lower for k in ["cartoon network", "cn arabia", "cn ", "nickelodeon", "nick", "disney", "boomerang", "cbeebies", "baraem", "jeem", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "duck", "fix&foxi", "kika", "gulli", "clan"]):
         return "Kids", 0x5
-    if any(k in name_lower for k in ["music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", "mazzika", "rotana clip", "rotana music", "wanasah", "aghani", "arabica", "4fun", "eska", "polo", "vivia", "nrj", "kiss", "dance", "hits"]):
+    # Kids Event Check (Animation)
+    if any(k in evt_lower for k in ["cartoon", "animation", "anime", "tales", "adventures of", "sponge", "patrol", "mouse", "tom and jerry"]):
+        return "Kids", 0x5
+
+    # 3. SPORTS (Strong Channel Keywords)
+    if any(k in ch_lower for k in ["sport", "soccer", "football", "kora", "racing", "f1", "wwe", "ufc", "fight", "box", "arena", "calcio", "match", "dazn", "motogp", "nba", "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nile sport", "arryadia", "euro", "bt sport", "sky sport", "polstat sport", "tsn", "supersport", "eleven"]):
+        return "Sports", 0x4
+    # Sports Event Check (Live matches on general channels)
+    if any(k in evt_lower for k in [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "grand prix", "tournament", "championship", "sport"]):
+        return "Sports", 0x4
+
+    # 4. NEWS (Strong Channel Keywords)
+    if any(k in ch_lower for k in ["news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", "bloomberg", "weather", "trt", "lbc", "skynews", "france 24", "russia today", "euronews", "tagesschau", "n24", "welt", "i24", "al araby", "alghad", "asharq", "watania", "ekhbariya"]):
+        return "News", 0x2
+    # News Event Check (Bulletins on general channels)
+    if any(k in evt_lower for k in ["news", "journal", "akhbar", "bulletin", "weather", "update", "report", "nachrichten", "tagesschau", "telegiornale", "noticias"]):
+        return "News", 0x2
+
+    # 5. DOCUMENTARY
+    if any(k in ch_lower for k in ["doc", "history", "historia", "nat geo", "wild", "planet", "earth", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "travel", "cook", "food", "geographic", "arte", "phoenix", "zdfinfo", "explorer", "viasat explore"]):
+        return "Documentary", 0x9
+    # Doc Event Check
+    if any(k in evt_lower for k in ["documentary", "wildlife", "planet", "history of", "investigation", "myth", "science", "safari", "world war", "ancient"]):
+        return "Documentary", 0x9
+
+    # 6. MUSIC
+    if any(k in ch_lower for k in ["music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", "mazzika", "rotana clip", "rotana music", "wanasah", "aghani", "arabica", "4fun", "eska", "polo", "vivia", "nrj", "kiss", "dance", "hits"]):
         return "Music", 0x6
-    if any(k in name_lower for k in ["drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", "entertainment", "novelas", "soaps", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "mbc iraq", "rotana khalijia", "rotana drama", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "bbc one", "bbc two", "itv", "channel 4", "rai 1", "rai 2", "canale 5", "italia 1", "tf1", "m6", "antena 3", "zdf", "rtl", "sat.1", "pro7", "vox", "kabel 1"]):
+
+    # 7. MOVIES (Specific Channels)
+    if any(k in ch_lower for k in ["movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere", "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "osn movies", "amc", "fox movies", "fox action", "fox thriller", "paramount", "tcm", "canal+ cinema", "cine+", "filmbox", "warnertv", "sony max"]):
+        return "Movies", 0x1
+    # Movie Event Check (Keywords in title)
+    if any(k in evt_lower for k in ["movie", "film", "cinema", "starring", "directed by"]):
+        return "Movies", 0x1
+
+    # 8. SHOWS / SERIES (Catch-all for entertainment)
+    if any(k in ch_lower for k in ["drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", "entertainment", "novelas", "soaps", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "mbc iraq", "rotana khalijia", "rotana drama", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "bbc one", "bbc two", "itv", "channel 4", "rai 1", "rai 2", "canale 5", "italia 1", "tf1", "m6", "antena 3", "zdf", "rtl", "sat.1", "pro7", "vox", "kabel 1"]):
         return "Shows", 0x3
+    # Series Event Check
+    if any(k in evt_lower for k in ["episode", "season", "series", "drama", "soap", "show", "serial", "telenovela"]):
+        return "Shows", 0x3
+
     return "General/Other", 0x0
 
 def clean_channel_name_fuzzy(name):
@@ -158,7 +198,7 @@ def check_epg_dat_exists():
         if os.path.exists(p): return True, p
     return False, "Not Found"
 
-# --- 4. List Builder (Resized for 1080 Width) ---
+# --- 4. List Builder ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
@@ -175,22 +215,11 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # New Dimensions for 1080px Width
-    # Icon: 10, y=10, 50x50
-    # Text Start X: 70
-    # Text Width: 550 (was 280) -> Lots more space for titles
-    # Time X: 640
-    # Category X: 750
-    # Percentage X: 950
-    
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         MultiContentEntryPixmapAlphaTest(pos=(10, 7), size=(50, 50), png=icon_pixmap),
-        
-        # Larger Fonts: font=0 is now 28pt, font=1 is 24pt
         MultiContentEntryText(pos=(70, 2), size=(550, 30), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
         MultiContentEntryText(pos=(70, 34), size=(550, 28), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
-        
         MultiContentEntryText(pos=(640, 2), size=(100, 60), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
         MultiContentEntryText(pos=(750, 2), size=(190, 60), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=category_name, color=0xFFFF00, color_sel=0xFFFF00),
         MultiContentEntryText(pos=(950, 2), size=(100, 60), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
@@ -241,9 +270,6 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
                 channel_count += 1
                 if channel_count >= MAX_CHANNELS: break
 
-                category, nibble = classify_by_channel_name(s_name)
-                if category is None: continue 
-                
                 sat_info = get_sat_position(s_ref)
                 
                 try:
@@ -262,7 +288,9 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
                     event_name = event.getEventName()
                     if not event_name: continue
                     
-                    if is_adult_content(event_name): continue
+                    # 1. CLASSIFY (Using both Channel + Event)
+                    category, nibble = classify_content(s_name, event_name)
+                    if category is None: continue # Blocked
 
                     clean_ch = clean_channel_name_fuzzy(s_name)
                     is_hd = "hd" in s_name.lower()
@@ -272,6 +300,7 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
                     
                     entry = build_list_entry(category, s_name, sat_info, event_name, s_ref, nibble, start_time, duration, show_prog)
                     
+                    # Deduplication
                     if clean_ch in unique_channels:
                         existing_entry, existing_is_hd = unique_channels[clean_ch]
                         if is_hd and not existing_is_hd:
@@ -285,9 +314,8 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
 
     return [val[0] for val in unique_channels.values()]
 
-# --- 6. The GUI Screen (Updated Dimensions & Fonts) ---
+# --- 6. The GUI Screen ---
 class WhatToWatchScreen(Screen):
-    # Expanded Size: 1080x720
     skin = f"""
         <screen position="center,center" size="1080,720" title="What to Watch v{VERSION}">
             <widget name="status_label" position="15,15" size="1050,50" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" />
@@ -314,10 +342,9 @@ class WhatToWatchScreen(Screen):
         self.session = session
         
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
-        # Increased Font Sizes for List
-        self["event_list"].l.setFont(0, gFont("Regular", 28)) # Channel Name
-        self["event_list"].l.setFont(1, gFont("Regular", 24)) # Event/Time/Cat
-        self["event_list"].l.setItemHeight(65) # Taller Rows
+        self["event_list"].l.setFont(0, gFont("Regular", 28))
+        self["event_list"].l.setFont(1, gFont("Regular", 24))
+        self["event_list"].l.setItemHeight(65)
         
         self["status_label"] = Label("Loading...")
         
@@ -375,7 +402,6 @@ class WhatToWatchScreen(Screen):
         self.apply_sorting()
         self.apply_filter()
 
-    # --- TRANSLATION FEATURE ---
     def show_translated_info(self):
         current_selection = self["event_list"].getCurrent()
         if not current_selection: return
