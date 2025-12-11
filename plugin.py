@@ -1,7 +1,7 @@
 # ============================================================================
 #  Plugin: What to Watch
 #  Author: reali22
-#  Version: 1.5
+#  Version: 1.0
 #  Description: Advanced EPG Browser with categorization, satellite filtering,
 #               smart deduplication, Auto-Update, Preview Mode, 
 #               STRICT Adult Filtering, and EPG Button UI.
@@ -33,7 +33,7 @@ from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
 # --- Constants ---
-VERSION = "1.5"
+VERSION = "1.0"
 AUTHOR = "reali22"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
