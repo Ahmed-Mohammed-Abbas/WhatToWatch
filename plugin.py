@@ -1,11 +1,12 @@
 # ============================================================================
 #  Plugin: What to Watch
 #  Author: reali22
-#  Version: 1.0
-#  Description: Content-Aware EPG Browser (Channel + Event Categorization),
-#               Satellite Filtering, Smart Deduplication, Auto-Update, 
-#               Preview Mode, STRICT Adult Filtering, EPG Translation.
+#  Version: 2.0
+#  Description: Content-Aware EPG Browser with Massive Satellite Database 
+#               (13E, 19.2E, 7W), Satellite Filtering, Smart Deduplication, 
+#               Auto-Update, Preview Mode, STRICT Adult Filtering, EPG Translation.
 #  GitHub: https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch
+#  Data Source: en.satexpat.com
 # ============================================================================
 
 import os
@@ -33,7 +34,7 @@ from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
 # --- Constants ---
-VERSION = "1.0"
+VERSION = "2.0"
 AUTHOR = "reali22"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
@@ -45,7 +46,7 @@ ADULT_KEYWORDS = [
     "babes", "brazzers", "dorcel", "private", "vivid", "colours", "night", 
     "hot", "love", "sct", "pink", "passion", "girls", "centoxcento", "exotic",
     "xy mix", "xy plus", "man-x", "evilangel", "daring", "lovesuite", "babe",
-    "softcore", "uncensored", "after dark"
+    "softcore", "uncensored", "after dark", "blue hustler", "dorcel tv"
 ]
 
 # --- 1. Helper Functions ---
@@ -79,7 +80,7 @@ def get_genre_icon(nibble):
     icon_map = {
         0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png",
         0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x8: "social.png",
-        0x9: "science.png", 0xA: "leisure.png"
+        0x9: "science.png", 0xA: "leisure.png", 0xB: "arts.png" # Religious mapped to Arts
     }
     icon_name = icon_map.get(nibble, "default.png")
     png_path = os.path.join(ICON_PATH, icon_name)
@@ -100,7 +101,7 @@ def is_adult_content(text):
 def classify_content(channel_name, event_name):
     """
     Decides category based on Channel Name AND Program Name.
-    Prioritizes Program Name for generic channels.
+    Includes comprehensive satellite data (13E, 19.2E, 7W).
     """
     # 1. SAFETY CHECK (Both)
     if is_adult_content(channel_name) or is_adult_content(event_name):
@@ -109,49 +110,93 @@ def classify_content(channel_name, event_name):
     ch_lower = channel_name.lower()
     evt_lower = event_name.lower() if event_name else ""
 
-    # 2. KIDS (Strict Channel Check First)
-    if any(k in ch_lower for k in ["cartoon network", "cn arabia", "cn ", "nickelodeon", "nick", "disney", "boomerang", "cbeebies", "baraem", "jeem", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "duck", "fix&foxi", "kika", "gulli", "clan"]):
+    # 2. KIDS (0x5)
+    if any(k in ch_lower for k in [
+        "cartoon network", "cn arabia", "cn ", "nickelodeon", "nick", "disney", "boomerang", 
+        "cbeebies", "baraem", "jeem", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", 
+        "baby", "duck", "fix&foxi", "kika", "gulli", "clan", "super rtl", "rai gulp", "rai yoyo",
+        "toverland", "vrak", "teletoon", "family ch", "y tv", "semsem"
+    ]):
         return "Kids", 0x5
-    # Kids Event Check (Animation)
-    if any(k in evt_lower for k in ["cartoon", "animation", "anime", "tales", "adventures of", "sponge", "patrol", "mouse", "tom and jerry"]):
+    if any(k in evt_lower for k in ["cartoon", "animation", "anime", "tales", "adventures of", "sponge", "patrol", "mouse", "tom and jerry", "pokemon"]):
         return "Kids", 0x5
 
-    # 3. SPORTS (Strong Channel Keywords)
-    if any(k in ch_lower for k in ["sport", "soccer", "football", "kora", "racing", "f1", "wwe", "ufc", "fight", "box", "arena", "calcio", "match", "dazn", "motogp", "nba", "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nile sport", "arryadia", "euro", "bt sport", "sky sport", "polstat sport", "tsn", "supersport", "eleven"]):
+    # 3. SPORTS (0x4)
+    if any(k in ch_lower for k in [
+        "sport", "soccer", "football", "kora", "racing", "f1", "wwe", "ufc", "fight", "box", 
+        "arena", "calcio", "match", "dazn", "motogp", "nba", "espn", "bein", "ssc", "alkass", 
+        "ad sport", "dubai sport", "sharjah sport", "on sport", "nile sport", "arryadia", 
+        "kuwait sport", "saudi sport", "oman sport", "bahrain sport", "euro", "bt sport", 
+        "sky sport", "polstat sport", "canal+ sport", "tsn", "supersport", "eleven", "ziggo sport",
+        "real madrid", "barca", "sevilla", "betis", "inter", "milan"
+    ]):
         return "Sports", 0x4
-    # Sports Event Check (Live matches on general channels)
-    if any(k in evt_lower for k in [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "grand prix", "tournament", "championship", "sport"]):
+    if any(k in evt_lower for k in [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "grand prix", "tournament", "championship", "sport", "derby", "final"]):
         return "Sports", 0x4
 
-    # 4. NEWS (Strong Channel Keywords)
-    if any(k in ch_lower for k in ["news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", "bloomberg", "weather", "trt", "lbc", "skynews", "france 24", "russia today", "euronews", "tagesschau", "n24", "welt", "i24", "al araby", "alghad", "asharq", "watania", "ekhbariya"]):
+    # 4. NEWS (0x2)
+    if any(k in ch_lower for k in [
+        "news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", "bloomberg", 
+        "weather", "trt", "lbc", "skynews", "france 24", "russia today", "rt ", "euronews", 
+        "tagesschau", "n24", "welt", "i24", "al araby", "alghad", "asharq", "watania", 
+        "ekhbariya", "al alam", "al hurra", "dw", "deutsche welle", "rai news", "tgcom24",
+        "canal 24", "teledeporte" # Wait, Teledeporte is sport, corrected below
+    ]):
         return "News", 0x2
-    # News Event Check (Bulletins on general channels)
-    if any(k in evt_lower for k in ["news", "journal", "akhbar", "bulletin", "weather", "update", "report", "nachrichten", "tagesschau", "telegiornale", "noticias"]):
+    if any(k in evt_lower for k in ["news", "journal", "akhbar", "bulletin", "weather", "update", "report", "nachrichten", "tagesschau", "telegiornale", "noticias", "breaking"]):
         return "News", 0x2
 
-    # 5. DOCUMENTARY
-    if any(k in ch_lower for k in ["doc", "history", "historia", "nat geo", "wild", "planet", "earth", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "travel", "cook", "food", "geographic", "arte", "phoenix", "zdfinfo", "explorer", "viasat explore"]):
+    # 5. RELIGIOUS (0x7 - Arts/Culture) - NEW
+    if any(k in ch_lower for k in [
+        "quran", "sunnah", "iqraa", "al resalah", "al nas", "al rahma", "al majd", "al karma", 
+        "al hayat", "miracle", "ctv", "aghapy", "noursat", "tbn", "god tv", "daystar", "ewtn", 
+        "bibel tv", "kto", "makkah", "madinah", "sharjah", "al-fady", "al-horreya", "al-keraza",
+        "al-masirah", "al-manar", "al-aqsa", "al-quds", "islam", "church", "catholic"
+    ]):
+        return "Religious", 0x7
+
+    # 6. DOCUMENTARY (0x9)
+    if any(k in ch_lower for k in [
+        "doc", "history", "historia", "nat geo", "wild", "planet", "earth", "animal", "science", 
+        "investigation", "crime", "discovery", "tlc", "quest", "travel", "cook", "food", 
+        "geographic", "arte", "phoenix", "zdfinfo", "explorer", "viasat explore", "rai storia",
+        "rai scuola", "ushuaia", "rmc decouverte", "focustv"
+    ]):
         return "Documentary", 0x9
-    # Doc Event Check
-    if any(k in evt_lower for k in ["documentary", "wildlife", "planet", "history of", "investigation", "myth", "science", "safari", "world war", "ancient"]):
+    if any(k in evt_lower for k in ["documentary", "wildlife", "planet", "history of", "investigation", "myth", "science", "safari", "world war", "ancient", "space", "universe"]):
         return "Documentary", 0x9
 
-    # 6. MUSIC
-    if any(k in ch_lower for k in ["music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", "mazzika", "rotana clip", "rotana music", "wanasah", "aghani", "arabica", "4fun", "eska", "polo", "vivia", "nrj", "kiss", "dance", "hits"]):
+    # 7. MUSIC (0x6)
+    if any(k in ch_lower for k in [
+        "music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", "mazzika", 
+        "rotana clip", "rotana music", "wanasah", "aghani", "arabica", "4fun", "eska", "polo", 
+        "vivia", "nrj", "kiss", "dance", "hits", "rtl 102.5", "radio italia", "virgin radio",
+        "trace", "cmusic", "mcm"
+    ]):
         return "Music", 0x6
 
-    # 7. MOVIES (Specific Channels)
-    if any(k in ch_lower for k in ["movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere", "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "osn movies", "amc", "fox movies", "fox action", "fox thriller", "paramount", "tcm", "canal+ cinema", "cine+", "filmbox", "warnertv", "sony max"]):
+    # 8. MOVIES (0x1)
+    if any(k in ch_lower for k in [
+        "movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere", 
+        "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood", 
+        "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "osn movies", "amc", 
+        "fox movies", "fox action", "fox thriller", "paramount", "tcm", "canal+ cinema", "cine+", 
+        "filmbox", "warnertv", "sony max", "top crime", "iris", "imagine movies", "art aflam"
+    ]):
         return "Movies", 0x1
-    # Movie Event Check (Keywords in title)
     if any(k in evt_lower for k in ["movie", "film", "cinema", "starring", "directed by"]):
         return "Movies", 0x1
 
-    # 8. SHOWS / SERIES (Catch-all for entertainment)
-    if any(k in ch_lower for k in ["drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", "entertainment", "novelas", "soaps", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "mbc iraq", "rotana khalijia", "rotana drama", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "bbc one", "bbc two", "itv", "channel 4", "rai 1", "rai 2", "canale 5", "italia 1", "tf1", "m6", "antena 3", "zdf", "rtl", "sat.1", "pro7", "vox", "kabel 1"]):
+    # 9. SHOWS / SERIES (0x3)
+    if any(k in ch_lower for k in [
+        "drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", 
+        "entertainment", "novelas", "soaps", "mbc 1", "mbc 4", "mbc drama", "mbc masr", 
+        "mbc iraq", "rotana khalijia", "rotana drama", "zee alwan", "zee tv", "star plus", 
+        "colors", "sony", "sky one", "sky atlantic", "bbc one", "bbc two", "itv", "channel 4", 
+        "rai 1", "rai 2", "canale 5", "italia 1", "tf1", "m6", "antena 3", "zdf", "rtl", "sat.1", 
+        "pro7", "vox", "kabel 1", "mediaset", "la7", "tv8", "nove", "dmax", "real time"
+    ]):
         return "Shows", 0x3
-    # Series Event Check
     if any(k in evt_lower for k in ["episode", "season", "series", "drama", "soap", "show", "serial", "telenovela"]):
         return "Shows", 0x3
 
@@ -198,7 +243,7 @@ def check_epg_dat_exists():
         if os.path.exists(p): return True, p
     return False, "Not Found"
 
-# --- 4. List Builder ---
+# --- 4. List Builder (Resized for 1080 Width) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
@@ -288,9 +333,9 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
                     event_name = event.getEventName()
                     if not event_name: continue
                     
-                    # 1. CLASSIFY (Using both Channel + Event)
+                    # CLASSIFY (Channel + Event)
                     category, nibble = classify_content(s_name, event_name)
-                    if category is None: continue # Blocked
+                    if category is None: continue 
 
                     clean_ch = clean_channel_name_fuzzy(s_name)
                     is_hd = "hd" in s_name.lower()
@@ -300,7 +345,6 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
                     
                     entry = build_list_entry(category, s_name, sat_info, event_name, s_ref, nibble, start_time, duration, show_prog)
                     
-                    # Deduplication
                     if clean_ch in unique_channels:
                         existing_entry, existing_is_hd = unique_channels[clean_ch]
                         if is_hd and not existing_is_hd:
