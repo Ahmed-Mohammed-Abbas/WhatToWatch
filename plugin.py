@@ -1,12 +1,10 @@
 # ============================================================================
 #  Plugin: What to Watch
 #  Author: reali22
-#  Version: 2.0
-#  Description: Content-Aware EPG Browser with Massive Satellite Database 
-#               (13E, 19.2E, 7W), Satellite Filtering, Smart Deduplication, 
-#               Auto-Update, Preview Mode, STRICT Adult Filtering, EPG Translation.
+#  Version: 2.1
+#  Description: Content-Aware EPG Browser with "Offline AI" (Weighted Scoring),
+#               Satellite Filtering, Deduplication, Auto-Update, and Translation.
 #  GitHub: https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch
-#  Data Source: en.satexpat.com
 # ============================================================================
 
 import os
@@ -34,12 +32,89 @@ from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
 # --- Constants ---
-VERSION = "2.0"
+VERSION = "2.1"
 AUTHOR = "reali22"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
-# --- ADULT BLACKLIST (Global) ---
+# --- 1. THE "OFFLINE AI" BRAIN (Weighted Keywords) ---
+# Dictionary format: "keyword": {"Category": score}
+# Higher score = stronger indicator.
+WEIGHTED_DB = {
+    # --- SPORTS (0x4) ---
+    "sport": {"Sports": 10}, "sports": {"Sports": 10}, "soccer": {"Sports": 10},
+    "football": {"Sports": 10}, "kora": {"Sports": 10}, "calcio": {"Sports": 10},
+    "match": {"Sports": 5}, "live": {"Sports": 2}, "vs": {"Sports": 3},
+    "cup": {"Sports": 5}, "league": {"Sports": 5}, "racing": {"Sports": 8},
+    "f1": {"Sports": 10}, "motogp": {"Sports": 10}, "wwe": {"Sports": 10},
+    "ufc": {"Sports": 10}, "boxing": {"Sports": 8}, "arena": {"Sports": 5},
+    "bein": {"Sports": 20}, "espn": {"Sports": 20}, "alkass": {"Sports": 15},
+    "ssc": {"Sports": 15}, "ad sport": {"Sports": 15}, "dubai sport": {"Sports": 15},
+    "on sport": {"Sports": 15}, "euro": {"Sports": 3}, "eurosport": {"Sports": 15},
+    "premier": {"Sports": 5}, "champion": {"Sports": 5}, "olymp": {"Sports": 8},
+    "goal": {"Sports": 5}, "hd": {"Sports": 0}, # Neutral
+
+    # --- MOVIES (0x1) ---
+    "movie": {"Movies": 10}, "movies": {"Movies": 10}, "film": {"Movies": 10},
+    "cinema": {"Movies": 10}, "cine": {"Movies": 10}, "kino": {"Movies": 10},
+    "aflam": {"Movies": 15}, "vod": {"Movies": 8}, "box office": {"Movies": 8},
+    "hbo": {"Movies": 15}, "rotana": {"Movies": 2}, "cinema": {"Movies": 10},
+    "action": {"Movies": 6}, "thriller": {"Movies": 6}, "horror": {"Movies": 6},
+    "comedy": {"Movies": 4}, "drama": {"Movies": 2, "Shows": 5}, # Split weight
+    "sci-fi": {"Movies": 6}, "western": {"Movies": 6}, "osn": {"Movies": 5},
+    "fox": {"Movies": 3, "Shows": 3}, "mbc 2": {"Movies": 20}, "mbc max": {"Movies": 20},
+    "bollywood": {"Movies": 10}, "zee aflam": {"Movies": 20}, "b4u": {"Movies": 15},
+    "starring": {"Movies": 5}, "directed": {"Movies": 5},
+
+    # --- NEWS (0x2) ---
+    "news": {"News": 15}, "akhbar": {"News": 15}, "arabia": {"News": 3},
+    "jazeera": {"News": 15}, "bbc": {"News": 10}, "cnn": {"News": 15},
+    "cnbc": {"News": 15}, "weather": {"News": 10}, "bloomberg": {"News": 15},
+    "hadath": {"News": 10}, "report": {"News": 5}, "journal": {"News": 8},
+    "update": {"News": 3}, "breaking": {"News": 5}, "info": {"News": 2},
+    "france 24": {"News": 15}, "russia today": {"News": 15}, "trt": {"News": 5},
+    "lbc": {"News": 5}, "skynews": {"News": 15}, "tagesschau": {"News": 10},
+
+    # --- KIDS (0x5) ---
+    "kid": {"Kids": 10}, "kids": {"Kids": 10}, "child": {"Kids": 8},
+    "cartoon": {"Kids": 15}, "toon": {"Kids": 15}, "anime": {"Kids": 12},
+    "anim": {"Kids": 5}, "junior": {"Kids": 8}, "disney": {"Kids": 15},
+    "nick": {"Kids": 15}, "cbeebies": {"Kids": 15}, "spacetoon": {"Kids": 20},
+    "mbc 3": {"Kids": 20}, "cn": {"Kids": 10}, "pogo": {"Kids": 15},
+    "dreamworks": {"Kids": 15}, "baby": {"Kids": 10}, "tales": {"Kids": 5},
+    "adventure": {"Kids": 2}, "mouse": {"Kids": 5}, "sponge": {"Kids": 5},
+
+    # --- DOCUMENTARY (0x9) ---
+    "doc": {"Documentary": 10}, "history": {"Documentary": 10}, "historia": {"Documentary": 10},
+    "geo": {"Documentary": 8}, "wild": {"Documentary": 10}, "planet": {"Documentary": 8},
+    "earth": {"Documentary": 8}, "animal": {"Documentary": 10}, "science": {"Documentary": 10},
+    "discovery": {"Documentary": 15}, "investigation": {"Documentary": 8}, "crime": {"Documentary": 5},
+    "nature": {"Documentary": 8}, "space": {"Documentary": 8}, "universe": {"Documentary": 8},
+    "safari": {"Documentary": 8}, "travel": {"Documentary": 8}, "cook": {"Documentary": 5},
+
+    # --- MUSIC (0x6) ---
+    "music": {"Music": 15}, "song": {"Music": 10}, "clip": {"Music": 8},
+    "mix": {"Music": 5}, "radio": {"Music": 10}, "mtv": {"Music": 15},
+    "melody": {"Music": 10}, "mazzika": {"Music": 15}, "wanasah": {"Music": 15},
+    "aghani": {"Music": 15}, "dance": {"Music": 8}, "hits": {"Music": 8},
+    "concert": {"Music": 8}, "live": {"Music": 2}, # Shared with sports
+
+    # --- RELIGIOUS (0x7) ---
+    "quran": {"Religious": 20}, "sunnah": {"Religious": 20}, "iqraa": {"Religious": 15},
+    "islam": {"Religious": 10}, "church": {"Religious": 10}, "catholic": {"Religious": 10},
+    "resalah": {"Religious": 10}, "majd": {"Religious": 5}, "karma": {"Religious": 5},
+    "agape": {"Religious": 10}, "ctv": {"Religious": 5}, "noursat": {"Religious": 10},
+
+    # --- SHOWS (0x3) ---
+    "series": {"Shows": 10}, "show": {"Shows": 5}, "tv": {"Shows": 1},
+    "drama": {"Shows": 8}, "soap": {"Shows": 8}, "episode": {"Shows": 5},
+    "season": {"Shows": 5}, "mosalsalat": {"Shows": 15}, "hikaya": {"Shows": 10},
+    "general": {"Shows": 5}, "family": {"Shows": 5}, "entertainment": {"Shows": 5},
+    "mbc 1": {"Shows": 15}, "mbc 4": {"Shows": 15}, "mbc drama": {"Shows": 15},
+    "zee": {"Shows": 5}, "colors": {"Shows": 5}, "star plus": {"Shows": 5}
+}
+
+# --- ADULT BLACKLIST (Strict) ---
 ADULT_KEYWORDS = [
     "xxx", "18+", "+18", "adult", "porn", "sex", "erotic", "nude", "hardcore", 
     "barely", "hustler", "playboy", "penthouse", "blue movie", "redlight", 
@@ -80,7 +155,7 @@ def get_genre_icon(nibble):
     icon_map = {
         0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png",
         0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x8: "social.png",
-        0x9: "science.png", 0xA: "leisure.png", 0xB: "arts.png" # Religious mapped to Arts
+        0x9: "science.png", 0xA: "leisure.png", 0xB: "arts.png"
     }
     icon_name = icon_map.get(nibble, "default.png")
     png_path = os.path.join(ICON_PATH, icon_name)
@@ -89,7 +164,7 @@ def get_genre_icon(nibble):
     if os.path.exists(default_path): return loadPNG(default_path)
     return None
 
-# --- 2. Advanced Categorization (Channel + Event) ---
+# --- 2. Intelligent Categorization Engine ---
 def is_adult_content(text):
     if not text: return False
     text_lower = text.lower()
@@ -98,109 +173,73 @@ def is_adult_content(text):
              return True
     return False
 
+def calculate_category_score(text):
+    """
+    Parses text and calculates a score for each category based on WEIGHTED_DB.
+    Returns: Dictionary {Category: Score}
+    """
+    scores = {
+        "Movies": 0, "Sports": 0, "News": 0, "Kids": 0, 
+        "Documentary": 0, "Music": 0, "Religious": 0, "Shows": 0
+    }
+    
+    if not text: return scores
+    
+    # Tokenize: Split by spaces and special chars
+    tokens = re.split(r'[\W_]+', text.lower())
+    
+    for token in tokens:
+        if token in WEIGHTED_DB:
+            impact = WEIGHTED_DB[token]
+            for cat, points in impact.items():
+                scores[cat] += points
+                
+    return scores
+
 def classify_content(channel_name, event_name):
     """
-    Decides category based on Channel Name AND Program Name.
-    Includes comprehensive satellite data (13E, 19.2E, 7W).
+    Determines category using the Weighted Scoring System.
     """
-    # 1. SAFETY CHECK (Both)
+    # 1. Safety Check
     if is_adult_content(channel_name) or is_adult_content(event_name):
         return None, None
 
-    ch_lower = channel_name.lower()
-    evt_lower = event_name.lower() if event_name else ""
+    # 2. Calculate Scores
+    # Channel name carries more weight (x1.5) than event name in some contexts,
+    # but here we just sum them up for a holistic view.
+    
+    cat_scores = calculate_category_score(channel_name)
+    evt_scores = calculate_category_score(event_name)
+    
+    # Combine Scores
+    final_scores = {}
+    for cat in cat_scores:
+        # Channel name is usually a stronger indicator of the STATION TYPE
+        # Event name is a stronger indicator of CURRENT CONTENT
+        # We give slight preference to Channel Name for stability
+        final_scores[cat] = (cat_scores[cat] * 1.5) + evt_scores.get(cat, 0)
 
-    # 2. KIDS (0x5)
-    if any(k in ch_lower for k in [
-        "cartoon network", "cn arabia", "cn ", "nickelodeon", "nick", "disney", "boomerang", 
-        "cbeebies", "baraem", "jeem", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", 
-        "baby", "duck", "fix&foxi", "kika", "gulli", "clan", "super rtl", "rai gulp", "rai yoyo",
-        "toverland", "vrak", "teletoon", "family ch", "y tv", "semsem"
-    ]):
-        return "Kids", 0x5
-    if any(k in evt_lower for k in ["cartoon", "animation", "anime", "tales", "adventures of", "sponge", "patrol", "mouse", "tom and jerry", "pokemon"]):
-        return "Kids", 0x5
-
-    # 3. SPORTS (0x4)
-    if any(k in ch_lower for k in [
-        "sport", "soccer", "football", "kora", "racing", "f1", "wwe", "ufc", "fight", "box", 
-        "arena", "calcio", "match", "dazn", "motogp", "nba", "espn", "bein", "ssc", "alkass", 
-        "ad sport", "dubai sport", "sharjah sport", "on sport", "nile sport", "arryadia", 
-        "kuwait sport", "saudi sport", "oman sport", "bahrain sport", "euro", "bt sport", 
-        "sky sport", "polstat sport", "canal+ sport", "tsn", "supersport", "eleven", "ziggo sport",
-        "real madrid", "barca", "sevilla", "betis", "inter", "milan"
-    ]):
-        return "Sports", 0x4
-    if any(k in evt_lower for k in [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "grand prix", "tournament", "championship", "sport", "derby", "final"]):
-        return "Sports", 0x4
-
-    # 4. NEWS (0x2)
-    if any(k in ch_lower for k in [
-        "news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", "bloomberg", 
-        "weather", "trt", "lbc", "skynews", "france 24", "russia today", "rt ", "euronews", 
-        "tagesschau", "n24", "welt", "i24", "al araby", "alghad", "asharq", "watania", 
-        "ekhbariya", "al alam", "al hurra", "dw", "deutsche welle", "rai news", "tgcom24",
-        "canal 24", "teledeporte" # Wait, Teledeporte is sport, corrected below
-    ]):
-        return "News", 0x2
-    if any(k in evt_lower for k in ["news", "journal", "akhbar", "bulletin", "weather", "update", "report", "nachrichten", "tagesschau", "telegiornale", "noticias", "breaking"]):
-        return "News", 0x2
-
-    # 5. RELIGIOUS (0x7 - Arts/Culture) - NEW
-    if any(k in ch_lower for k in [
-        "quran", "sunnah", "iqraa", "al resalah", "al nas", "al rahma", "al majd", "al karma", 
-        "al hayat", "miracle", "ctv", "aghapy", "noursat", "tbn", "god tv", "daystar", "ewtn", 
-        "bibel tv", "kto", "makkah", "madinah", "sharjah", "al-fady", "al-horreya", "al-keraza",
-        "al-masirah", "al-manar", "al-aqsa", "al-quds", "islam", "church", "catholic"
-    ]):
-        return "Religious", 0x7
-
-    # 6. DOCUMENTARY (0x9)
-    if any(k in ch_lower for k in [
-        "doc", "history", "historia", "nat geo", "wild", "planet", "earth", "animal", "science", 
-        "investigation", "crime", "discovery", "tlc", "quest", "travel", "cook", "food", 
-        "geographic", "arte", "phoenix", "zdfinfo", "explorer", "viasat explore", "rai storia",
-        "rai scuola", "ushuaia", "rmc decouverte", "focustv"
-    ]):
-        return "Documentary", 0x9
-    if any(k in evt_lower for k in ["documentary", "wildlife", "planet", "history of", "investigation", "myth", "science", "safari", "world war", "ancient", "space", "universe"]):
-        return "Documentary", 0x9
-
-    # 7. MUSIC (0x6)
-    if any(k in ch_lower for k in [
-        "music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", "mazzika", 
-        "rotana clip", "rotana music", "wanasah", "aghani", "arabica", "4fun", "eska", "polo", 
-        "vivia", "nrj", "kiss", "dance", "hits", "rtl 102.5", "radio italia", "virgin radio",
-        "trace", "cmusic", "mcm"
-    ]):
-        return "Music", 0x6
-
-    # 8. MOVIES (0x1)
-    if any(k in ch_lower for k in [
-        "movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "premiere", 
-        "hbo", "sky cinema", "sky movies", "mbc 2", "mbc max", "mbc action", "mbc bollywood", 
-        "rotana cinema", "rotana classic", "zee aflam", "zee cinema", "b4u", "osn movies", "amc", 
-        "fox movies", "fox action", "fox thriller", "paramount", "tcm", "canal+ cinema", "cine+", 
-        "filmbox", "warnertv", "sony max", "top crime", "iris", "imagine movies", "art aflam"
-    ]):
-        return "Movies", 0x1
-    if any(k in evt_lower for k in ["movie", "film", "cinema", "starring", "directed by"]):
-        return "Movies", 0x1
-
-    # 9. SHOWS / SERIES (0x3)
-    if any(k in ch_lower for k in [
-        "drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", 
-        "entertainment", "novelas", "soaps", "mbc 1", "mbc 4", "mbc drama", "mbc masr", 
-        "mbc iraq", "rotana khalijia", "rotana drama", "zee alwan", "zee tv", "star plus", 
-        "colors", "sony", "sky one", "sky atlantic", "bbc one", "bbc two", "itv", "channel 4", 
-        "rai 1", "rai 2", "canale 5", "italia 1", "tf1", "m6", "antena 3", "zdf", "rtl", "sat.1", 
-        "pro7", "vox", "kabel 1", "mediaset", "la7", "tv8", "nove", "dmax", "real time"
-    ]):
-        return "Shows", 0x3
-    if any(k in evt_lower for k in ["episode", "season", "series", "drama", "soap", "show", "serial", "telenovela"]):
-        return "Shows", 0x3
-
-    return "General/Other", 0x0
+    # 3. Find Winner
+    best_cat = "General/Other"
+    highest_score = 0
+    
+    for cat, score in final_scores.items():
+        if score > highest_score:
+            highest_score = score
+            best_cat = cat
+            
+    # 4. Threshold Check
+    # If the highest score is very low (< 3), it might be a false positive or generic
+    if highest_score < 3:
+        return "General/Other", 0x0
+        
+    # 5. Map to Nibble
+    cat_map = {
+        "Movies": 0x1, "News": 0x2, "Shows": 0x3, "Sports": 0x4,
+        "Kids": 0x5, "Music": 0x6, "Religious": 0x7, "Documentary": 0x9
+    }
+    
+    return best_cat, cat_map.get(best_cat, 0x0)
 
 def clean_channel_name_fuzzy(name):
     n = name.lower()
@@ -333,7 +372,7 @@ def get_categorized_events_list(use_favorites=False, time_offset=0):
                     event_name = event.getEventName()
                     if not event_name: continue
                     
-                    # CLASSIFY (Channel + Event)
+                    # CLASSIFY using AI-Score
                     category, nibble = classify_content(s_name, event_name)
                     if category is None: continue 
 
@@ -446,6 +485,7 @@ class WhatToWatchScreen(Screen):
         self.apply_sorting()
         self.apply_filter()
 
+    # --- TRANSLATION FEATURE ---
     def show_translated_info(self):
         current_selection = self["event_list"].getCurrent()
         if not current_selection: return
@@ -456,7 +496,7 @@ class WhatToWatchScreen(Screen):
         start_time = payload[5]
         
         epg_cache = eEPGCache.getInstance()
-        text_to_translate = event_name
+        text_to_translate = event_name # Default
         
         try:
             event = epg_cache.lookupEventTime(eServiceReference(service_ref), start_time)
@@ -469,7 +509,7 @@ class WhatToWatchScreen(Screen):
         except: pass
 
         self.session.open(MessageBox, "Translating...", type=MessageBox.TYPE_INFO, timeout=1)
-        translated = translate_text(text_to_translate, target_lang='en') 
+        translated = translate_text(text_to_translate, target_lang='en') # Change 'en' to 'ar' if preferred
         self.session.open(MessageBox, translated, type=MessageBox.TYPE_INFO)
 
     def toggle_time_filter(self):
