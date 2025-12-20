@@ -1,4 +1,5 @@
 # WhatToWatch
+
 Version: 2.0
 This update (v2.0) introduces the most comprehensive categorization engine yet. It includes:
 
@@ -13,6 +14,9 @@ News: Now catches international variants like DW, France 24, TRT, Sky News, and 
 Sports: Expanded to include AD Sports, Dubai Sports, Sharjah Sports, Arryadia, Polsat Sport, Match!, etc.
 
 Movies: Fixed detection for Zee Aflam, B4U, Rotana, MBC Bollywood, Sky Cinema, Fox Movies.
+
+Telnet install: cd /usr/lib/enigma2/python/Plugins/Extensions && rm -rf WhatToWatch && wget --no-check-certificate https://github.com/Ahmed-Mohammed-Abbas/WhatToWatch/archive/main.zip -O WhatToWatch.zip && unzip WhatToWatch.zip && mv WhatToWatch-main WhatToWatch && rm WhatToWatch.zip && killall -9 enigma2
+
 
 Version: 2.1
 This is a major architectural upgrade (v2.1).
