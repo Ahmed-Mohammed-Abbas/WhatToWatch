@@ -1,8 +1,9 @@
+# -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 2.1 (Offline Intelligence Edition)
-#  Description: Offline weighted scoring, inertia-based classification, 
-#               and "Just Started" sorting. No APIs.
+#  Version: 2.1 (Python 3 Native)
+#  Description: Offline weighted scoring & "Just Started" sort.
+#               Optimized for Python 3.13+
 # ============================================================================
 
 import os
@@ -26,13 +27,12 @@ VERSION = "2.1"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
 
-# --- CONFIGURATION (Simplified - No API Keys) ---
+# --- CONFIGURATION ---
 config.plugins.WhatToWatch = ConfigSubsection()
 config.plugins.WhatToWatch.show_picons = ConfigYesNo(default=True)
 config.plugins.WhatToWatch.search_limit = ConfigText(default="2000", fixed_size=False)
 
-# --- KEYWORD DATABASE (Weighted) ---
-# Format: "Category": ([Channel Keywords], [Title/Desc Keywords])
+# --- KEYWORD DATABASE ---
 KEYWORDS = {
     "Sports": (
         ["sport", "espn", "bein", "sky sport", "eurosport", "bt sport", "nba", "racing", "motogp", "f1", "football", "soccer", "tennis", "golf", "cricket", "super sport", "ssc", "alkass", "ad sport", "on sport", "match", "dazn", "arena", "calcio", "canal+ sport"], 
@@ -64,18 +64,13 @@ KEYWORDS = {
     )
 }
 
-# Live boosting keywords
 LIVE_KEYWORDS = ["live", "direct", "vivo", "mubasher", "ao vivo", "canlı", "na żywo"]
-
-# Adult filters
 ADULT_KEYWORDS = ["xxx", "18+", "porn", "adult", "sex", "erotic", "brazzers", "hustler", "playboy", "dorcel", "vivid", "redlight", "blue movie"]
 
-
-# --- CORE LOGIC: SCORING ENGINE ---
-
+# --- CORE HELPERS ---
 def clean_text(text):
     if not text: return ""
-    # Remove HTML tags, color codes, and extra spaces
+    # Remove control characters and HTML
     text = re.sub(r'(\x0B|\x19|\x86|\x87)', '', text)
     text = re.sub(r'<[^>]+>', '', text)
     return text.lower().strip()
@@ -83,8 +78,7 @@ def clean_text(text):
 def is_live_content(text):
     text = clean_text(text)
     for kw in LIVE_KEYWORDS:
-        # Check for whole word match to avoid false positives (e.g., "liverpool" != "live")
-        if re.search(r'\b' + re.escape(kw) + r'\b', text):
+        if re.search(rf'\b{re.escape(kw)}\b', text):
             return True
     return False
 
@@ -92,56 +86,43 @@ def calculate_score(text, keywords_list, weight=1):
     score = 0
     text_clean = clean_text(text)
     
-    # 1. Phrase Matching (Higher priority)
+    # Phrase Match
     for kw in keywords_list:
         if " " in kw and kw in text_clean:
-            score += (3 * weight) # Boost phrases
+            score += (3 * weight)
             
-    # 2. Token Matching
+    # Token Match
     tokens = text_clean.split()
     for kw in keywords_list:
-        if " " not in kw:
-            if kw in tokens: # Exact token match
-                score += (1 * weight)
+        if " " not in kw and kw in tokens:
+            score += (1 * weight)
     return score
 
 def classify_event_weighted(channel_name, event_title, event_desc):
-    # 1. Safety Check (Adult)
     combined_text = f"{channel_name} {event_title}".lower()
-    if any(x in combined_text for x in ADULT_KEYWORDS):
-        return None, None # Filter out
+    for x in ADULT_KEYWORDS:
+        if x in combined_text: return None, None, False
 
     scores = {}
     
-    # --- SCORING WEIGHTS ---
-    # Channel Name: High Inertia (If channel is "Sky Sports", it's Sports) -> Weight 5
-    # Event Title: Strong Indicator -> Weight 3
-    # Description: Context only -> Weight 1
-    
-    for cat, (ch_kws, txt_kws) in KEYWORDS.items():
+    for cat, data in KEYWORDS.items():
+        ch_kws = data[0]
+        txt_kws = data[1]
         cat_score = 0
-        
-        # Channel Inertia
         cat_score += calculate_score(channel_name, ch_kws, weight=5)
-        
-        # Content Matching
         cat_score += calculate_score(event_title, txt_kws, weight=3)
         cat_score += calculate_score(event_desc, txt_kws, weight=1)
         
         if cat_score > 0:
             scores[cat] = cat_score
 
-    # Live Content Boost
     is_live = is_live_content(event_title) or is_live_content(channel_name)
     
-    # Determine Winner
     if not scores:
-        # Fallback for generic entertainment/shows
         return ("Shows", 0x3, is_live)
         
     winner = max(scores, key=scores.get)
     
-    # Nibble Mapping for Icons
     nibble_map = {
         "Movies": 0x1, "News": 0x2, "Shows": 0x3, "Sports": 0x4,
         "Kids": 0x5, "Music": 0x6, "Religious": 0x7, "Documentary": 0x9
@@ -169,22 +150,19 @@ def get_sat_position(ref_str):
     except: pass
     return ""
 
-
 # --- LIST BUILDER ---
 def build_list_entry(cat, name, sat, evt, ref, nib, start, dur, is_live):
     icon_pixmap = get_genre_icon(nib)
     
-    # Format Time
     if start > 0:
         t_struct = time.localtime(start)
         time_str = f"{t_struct.tm_hour:02d}:{t_struct.tm_min:02d}"
     else:
         time_str = "--:--"
 
-    display_name = f"{name}"
+    display_name = name
     if sat: display_name += f"  ({sat})"
 
-    # Progress Calculation
     progress_str = ""
     progress_col = 0xFFFFFF
     if dur > 0:
@@ -192,18 +170,17 @@ def build_list_entry(cat, name, sat, evt, ref, nib, start, dur, is_live):
         if start <= now < start + dur:
             pct = int(((now - start) / float(dur)) * 100)
             progress_str = f"{pct}%"
-            if pct > 80: progress_col = 0xFF4040 # Red ending
-            elif pct < 20: progress_col = 0x00FF00 # Green starting
+            if pct > 80: progress_col = 0xFF4040
+            elif pct < 20: progress_col = 0x00FF00
     
-    # Live Indicator
     evt_display = evt
     evt_color = 0xA0A0A0
     if is_live:
         evt_display = f"(LIVE) {evt}"
-        evt_color = 0x00FF00 # Green text for live events
+        evt_color = 0x00FF00
 
     return [
-        (cat, name, sat, evt, ref, start, dur), # 0: Data Payload
+        (cat, name, sat, evt, ref, start, dur), 
         MultiContentEntryPixmapAlphaTest(pos=(10, 8), size=(50, 50), png=icon_pixmap),
         MultiContentEntryText(pos=(70, 3), size=(550, 30), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF),
         MultiContentEntryText(pos=(70, 35), size=(550, 28), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=evt_display, color=evt_color),
@@ -218,12 +195,10 @@ class WhatToWatchScreen(Screen):
         <screen position="center,center" size="1080,720" title="What to Watch 2.1">
             <widget name="status" position="15,10" size="1050,40" font="Regular;26" halign="center" valign="center" foregroundColor="#00ff00" />
             <widget name="list" position="15,60" size="1050,580" scrollbarMode="showOnDemand" />
-            
             <ePixmap pixmap="skin_default/buttons/red.png" position="15,660" size="40,40" alphatest="on" />
             <ePixmap pixmap="skin_default/buttons/green.png" position="225,660" size="40,40" alphatest="on" />
             <ePixmap pixmap="skin_default/buttons/yellow.png" position="435,660" size="40,40" alphatest="on" />
             <ePixmap pixmap="skin_default/buttons/blue.png" position="645,660" size="40,40" alphatest="on" />
-            
             <widget name="key_red" position="60,660" size="150,40" font="Regular;22" halign="left" valign="center" transparent="1" />
             <widget name="key_green" position="270,660" size="150,40" font="Regular;22" halign="left" valign="center" transparent="1" />
             <widget name="key_yellow" position="480,660" size="150,40" font="Regular;22" halign="left" valign="center" transparent="1" />
@@ -261,7 +236,6 @@ class WhatToWatchScreen(Screen):
         self.processed_count = 0
         self.use_favorites = True
         
-        # Sorting Modes: Category -> Just Started -> Channel -> Time
         self.sort_modes = ["Category", "Just Started", "Channel Name", "Time"]
         self.sort_index = 0
 
@@ -279,7 +253,6 @@ class WhatToWatchScreen(Screen):
         src = "Favorites" if self.use_favorites else "All Channels"
         self["status"].setText(f"Loading {src}...")
         
-        # Get Services
         serviceHandler = eServiceCenter.getInstance()
         ref = '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "userbouquet.favourites.tv" ORDER BY bouquet' if self.use_favorites else '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "bouquets.tv" ORDER BY bouquet'
         root = eServiceReference(ref)
@@ -291,7 +264,6 @@ class WhatToWatchScreen(Screen):
                 s_list = serviceHandler.list(eServiceReference(b[0]))
                 if s_list:
                     self.raw_channels.extend(s_list.getContent("SN", True))
-                    # Check limit
                     try:
                         limit = int(config.plugins.WhatToWatch.search_limit.value)
                         if len(self.raw_channels) > limit: break
@@ -308,16 +280,15 @@ class WhatToWatchScreen(Screen):
 
         epg_cache = eEPGCache.getInstance()
         now = int(time.time())
-        batch_size = 15 # Optimize for speed vs UI freeze
+        batch_size = 15
         
         for _ in range(batch_size):
             if not self.raw_channels: break
             s_ref, s_name = self.raw_channels.pop(0)
             
-            if "::" in s_ref: continue # Skip markers
+            if "::" in s_ref: continue
             
             try:
-                # Resolve alternative refs for IPTV
                 check_ref = s_ref
                 if s_ref.startswith("4097:") or s_ref.startswith("5001:"):
                     parts = s_ref.split(":")
@@ -335,10 +306,8 @@ class WhatToWatchScreen(Screen):
                 start = event.getBeginTime()
                 dur = event.getDuration()
                 
-                # Logic: Only show current or future (within small margin)
                 if start + dur < now: continue 
                 
-                # --- CLASSIFY ---
                 cat, nib, is_live = classify_event_weighted(s_name, evt_name, full_desc)
                 if not cat: continue
 
@@ -364,22 +333,17 @@ class WhatToWatchScreen(Screen):
         self["key_red"].setText(f"Sort: {mode}")
         self["status"].setText(f"Found {len(self.full_data)} Events. Sorted by {mode}")
         
-        data = self.full_data[:] # Copy
+        data = self.full_data[:]
         now = int(time.time())
 
         if mode == "Category":
-            # Sort by Category -> Live Status -> Name
             data.sort(key=lambda x: (x["cat"], not x["live"], x["name"]))
             
         elif mode == "Just Started":
-            # Calculate elapsed time. 
-            # We want items that started RECENTLY (smallest positive elapsed time) at top.
-            # Items starting in future are pushed down.
             def start_heuristic(x):
                 elapsed = now - x["start"]
-                if elapsed >= 0: return elapsed # Started X seconds ago
-                return 999999 + abs(elapsed) # Started in future (push to bottom)
-            
+                if elapsed >= 0: return elapsed
+                return 999999 + abs(elapsed)
             data.sort(key=start_heuristic)
             
         elif mode == "Channel Name":
@@ -388,7 +352,6 @@ class WhatToWatchScreen(Screen):
         elif mode == "Time":
             data.sort(key=lambda x: x["start"])
 
-        # Rebuild visual list
         res = []
         for item in data:
             res.append(build_list_entry(
@@ -401,11 +364,9 @@ class WhatToWatchScreen(Screen):
         cur = self["list"].getCurrent()
         if not cur: return
         
-        # Find data in full_list
         ref = cur[0][4]
         evt_name = cur[0][3]
         
-        # Locate description
         desc = "No description available."
         for x in self.full_data:
             if x["ref"] == ref and x["evt"] == evt_name:
