@@ -2,7 +2,7 @@
 ============================================================================
 Plugin: What to Watch
 Author: reali22
-Version: 2.0 (Enhanced)
+Version: 2.1 (Enhanced)
 Description: Content-Aware EPG Browser with Smart AI Categorization,
              Progress-Based Sorting, and Multi-Signal Detection
 ============================================================================
@@ -33,7 +33,7 @@ from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
 # --- Constants ---
-VERSION = "2.0"
+VERSION = "2.1"
 AUTHOR = "reali22"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
