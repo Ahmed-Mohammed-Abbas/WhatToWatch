@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.6 (Wider + Inline Sat)
+#  Version: 3.7 (Optimized Layout)
 #  Author: reali22
-#  Description: Left Sidebar (555px). Sat info next to Channel Name.
+#  Description: 555px Sidebar. Time first. Tight margins. Abbreviated Cats.
 # ============================================================================
 
 import os
@@ -33,7 +33,7 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.6"
+VERSION = "3.7"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
@@ -155,7 +155,14 @@ def translate_text(text, target_lang='en'):
     except: pass
     return text
 
-# --- List Builder (Inline Satellite) ---
+def abbreviate_category(cat_name):
+    subs = {
+        "Documentary": "Docs", "Religious": "Relig.", "Sports": "Sport",
+        "Movies": "Movie", "Entertainment": "Entert.", "General": "Gen."
+    }
+    return subs.get(cat_name, cat_name)
+
+# --- List Builder (Optimized Layout) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
@@ -164,6 +171,9 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     display_name = channel_name
     if sat_info:
         display_name = f"{channel_name} ({sat_info})"
+
+    # Shorten Category
+    short_cat = abbreviate_category(category_name)
 
     # Progress Logic
     progress_str = ""
@@ -177,28 +187,32 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # --- WIDTH 555px LAYOUT ---
-    # Icon: 50px | Gap: 10px | Text Start: 70px | Time End: 545px
-    # Available Text Width: ~475px
-    # Time Col Width: 85px -> Start X: 460
-    # Name Col Width: 380px -> Start X: 70
-    
+    # --- TIGHT LAYOUT (Width 555px) ---
+    # Icon: 0-50px (Width 50)
+    # Time: 52-115px (Width ~63) -> Moved to front
+    # Text: 118-490px (Width ~372) -> Channel/Event Name
+    # Info: 495-555px (Width ~60) -> Progress/Cat (Right Aligned)
+
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
+        
         # 1. Icon (Top Left)
-        MultiContentEntryPixmapAlphaTest(pos=(10, 10), size=(50, 50), png=icon_pixmap),
+        MultiContentEntryPixmapAlphaTest(pos=(2, 12), size=(50, 50), png=icon_pixmap),
         
-        # 2. Channel Name + Sat (Top Right, Wider)
-        MultiContentEntryText(pos=(70, 5), size=(380, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
+        # 2. Time (Now Before Name)
+        MultiContentEntryText(pos=(55, 5), size=(70, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+
+        # 3. Channel Name (Tight to Time)
+        MultiContentEntryText(pos=(125, 5), size=(360, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
         
-        # 3. Event Name (Below Channel, Wider)
-        MultiContentEntryText(pos=(70, 30), size=(380, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        # 4. Event Name (Below Channel, Aligned with Channel Name)
+        MultiContentEntryText(pos=(125, 30), size=(360, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
         
-        # 4. Time (Far Right Top)
-        MultiContentEntryText(pos=(460, 5), size=(85, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+        # 5. Progress % (Top Right Edge)
+        MultiContentEntryText(pos=(490, 5), size=(60, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
         
-        # 5. Progress/Category (Far Right Bottom)
-        MultiContentEntryText(pos=(460, 30), size=(85, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        # 6. Abbreviated Category (Bottom Right Edge)
+        MultiContentEntryText(pos=(490, 30), size=(60, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
     ]
     return res
 
@@ -238,7 +252,7 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
 
 # --- The GUI Screen ---
 class WhatToWatchScreen(Screen):
-    # Position: Left Sidebar (0,0). Width=555 (10% wider than 3.5). Height=720.
+    # Position: Left Sidebar (0,0). Width=555. Height=720.
     skin = f"""
         <screen position="0,0" size="555,720" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
             <eLabel position="0,0" size="555,720" backgroundColor="#181818" zPosition="-1" />
@@ -274,7 +288,6 @@ class WhatToWatchScreen(Screen):
         # Font Configuration
         self["event_list"].l.setFont(0, gFont("Regular", 22)) # Channel Name
         self["event_list"].l.setFont(1, gFont("Regular", 18)) # Event/Time
-        self["event_list"].l.setFont(2, gFont("Regular", 14)) # Sat Info
         self["event_list"].l.setItemHeight(80)
         
         self["status_label"] = Label("Loading...")
