@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 2.9 (Fixed for Python 3)
-#  Description: Connectivity Fix, Category Sorting, Satellite Filter, Update.
+#  Version: 3.1 (Enhanced Sorting + Big UI)
+#  Description: Bottom-aligned Big UI.
+#               New Tiered Sorting Engine (Channel Name Priority).
 # ============================================================================
 
 import os
@@ -10,7 +11,7 @@ import time
 import re
 import json
 from sys import version_info
-from urllib.parse import quote  # Fixed import for Python 3
+from urllib.parse import quote
 
 # --- Enigma2 Imports ---
 from Screens.Screen import Screen
@@ -32,167 +33,122 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "2.9"
-AUTHOR = "reali22"
+VERSION = "3.1"
+PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
+PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
+ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
-CACHE_FILE = "/etc/enigma2/wtw_ai_cache.json"
 
-# --- ADULT BLACKLIST ---
-ADULT_KEYWORDS = [
-    "xxx", "18+", "+18", "adult", "porn", "sex", "erotic", "nude", "hardcore", 
-    "barely", "hustler", "playboy", "penthouse", "blue movie", "redlight", 
-    "babes", "brazzers", "dorcel", "private", "vivid", "colours", "night", 
-    "hot", "love", "sct", "pink", "passion", "girls", "centoxcento", "exotic",
-    "xy mix", "xy plus", "man-x", "evilangel", "daring", "lovesuite", "babe",
-    "softcore", "uncensored", "after dark", "blue hustler", "dorcel tv"
-]
+# --- SMART CATEGORY DATABASE ---
+# Tuple Format: ( [Channel Name Matches], [Event Title Matches] )
 
-# --- 1. Global Helpers ---
-PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
-PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py") # Fixed: Defined missing variable
-ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
+CATEGORIES = {
+    "Kids": (
+        # Channel Names (Strict)
+        ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "cbeebies", "citv", "pop", "tiny", "junior", "jeem", "baraem", "fix & foxi", "duck"],
+        # Event Keywords
+        ["cartoon", "animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "pig", "bear", "tales", "princess", "dragon", "lego", "pokemon"]
+    ),
+    "Sports": (
+        # Channel Names
+        ["sport", "espn", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport", "match!", "setanta", "extreme"],
+        # Event Keywords
+        [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "tournament", "championship", "derby", "qualifying", "final", "bundesliga", "laliga", "serie a", "premier league"]
+    ),
+    "News": (
+        # Channel Names
+        ["news", "cnn", "bbc", "jazeera", "alarabiya", "hadath", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw", "watania", "ekhbariya", "alaraby", "alghad", "asharq", "lbc", "tagesschau", "welt", "n-tv", "rai news", "24h"],
+        # Event Keywords
+        ["news", "journal", "report", "briefing", "update", "headline", "politics", "weather", "parliament", "breaking"]
+    ),
+    "Documentary": (
+        # Channel Names
+        ["doc", "history", "historia", "nat geo", "national geographic", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte", "phoenix", "explorer", "smithsonian", "eden", "viasat", "focus", "dmax"],
+        # Event Keywords
+        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "world war", "nature", "safari", "shark", "space"]
+    ),
+    "Movies": (
+        # Channel Names
+        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "sky cinema", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "filmbox", "sony max", "star movies", "wb tv"],
+        # Event Keywords
+        ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "blockbuster"]
+    ),
+    "Religious": (
+        # Channel Names
+        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", "ewtn", "bibel", "makkah", "madinah", "islam", "church", "peace tv", "huda", "guide"],
+        # Event Keywords
+        ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh"]
+    ),
+    "Music": (
+        # Channel Names
+        ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits", "trace", "mezzo", "classica", "nrj", "radio", "fm"],
+        # Event Keywords
+        ["concert", "videoclip", "hits", "top 40", "playlist", "songs", "symphony", "orchestra", "festival"]
+    ),
+    "Shows": (
+        # Channel Names (Series/Entertainment)
+        ["drama", "series", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "rotana drama", "rotana khalijia", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "fox", "comedy central", "syfy", "axn", "novelas", "bet", "e!"],
+        # Event Keywords
+        ["episode", "season", "series", "show", "reality", "soap", "telenovela", "sitcom"]
+    )
+}
 
-# AI Cache
-AI_CACHE = {}
-if os.path.exists(CACHE_FILE):
-    try:
-        with open(CACHE_FILE, 'r') as f: AI_CACHE = json.load(f)
-    except: pass
+ADULT_KEYWORDS = ["xxx", "18+", "porn", "adult", "sex", "erotic", "brazzers", "hustler", "playboy", "dorcel", "vivid", "redlight"]
 
-def save_ai_cache():
-    try:
-        with open(CACHE_FILE, 'w') as f: json.dump(AI_CACHE, f)
-    except: pass
-
-def ask_gemini_category(text):
-    """
-    Uses system cURL to bypass Python SSL issues.
-    """
-    api_key = config.plugins.WhatToWatch.api_key.value
-    if not api_key or len(api_key) < 10: return None, False
-    
-    cache_key = text.lower().strip()
-    if cache_key in AI_CACHE: return AI_CACHE[cache_key], True
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    
-    # Escape quotes for shell command
-    safe_text = text.replace("'", "").replace('"', "")
-    prompt = f"Classify into ONE: Sports, Movies, News, Kids, Documentary, Music, Religious, Shows. Input: {safe_text}"
-    
-    # Construct JSON payload for cURL
-    json_data = '{"contents": [{"parts": [{"text": "' + prompt + '"}]}]}'
-    
-    # CURL COMMAND: -k (insecure/no-ssl-check), -s (silent), -X POST
-    cmd = f"curl -k -s -H 'Content-Type: application/json' -d '{json_data}' '{url}' > /tmp/wtw_response.json"
-    
-    try:
-        os.system(cmd)
-        
-        if os.path.exists("/tmp/wtw_response.json"):
-            with open("/tmp/wtw_response.json", "r") as f:
-                response = json.load(f)
-            
-            # Check for API error structure
-            if "error" in response:
-                print(f"[WtW] API Error: {response['error']}")
-                return None, False
-
-            answer = response['candidates'][0]['content']['parts'][0]['text'].strip()
-            
-            mapping = {
-                "Sports": ("Sports", 0x4), "Movies": ("Movies", 0x1), "News": ("News", 0x2),
-                "Kids": ("Kids", 0x5), "Music": ("Music", 0x6), "Documentary": ("Documentary", 0x9),
-                "Religious": ("Religious", 0x7), "Shows": ("Shows", 0x3)
-            }
-            
-            for k, v in mapping.items():
-                if k.lower() in answer.lower():
-                    AI_CACHE[cache_key] = v
-                    return v, True
-            
-            # Default fallback if AI answers something else
-            res = ("General/Other", 0x0)
-            AI_CACHE[cache_key] = res
-            return res, True
-            
-    except Exception as e:
-        print(f"[WtW] Curl/Parse Error: {e}")
-        return None, False
-        
-    return None, False
-
-def translate_text(text, target_lang='en'):
-    """
-    Uses cURL for translation to avoid SSL errors.
-    """
-    if not text or len(text) < 2: return "No description."
-    if any('\u0600' <= char <= '\u06FF' for char in text[:30]): return text
-    
-    try:
-        encoded = quote(text)
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={encoded}"
-        
-        cmd = f"curl -k -s -A 'Mozilla/5.0' '{url}' > /tmp/wtw_trans.json"
-        os.system(cmd)
-        
-        if os.path.exists("/tmp/wtw_trans.json"):
-            with open("/tmp/wtw_trans.json", "r") as f:
-                data = json.load(f)
-            return data[0][0][0] if data and data[0] else text
-            
-    except: pass
-    return text
-
-def get_genre_icon(nibble):
-    icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x8: "social.png", 0x9: "science.png", 0xA: "leisure.png", 0xB: "arts.png"}
-    icon_name = icon_map.get(nibble, "default.png")
-    png_path = os.path.join(ICON_PATH, icon_name)
-    if os.path.exists(png_path): return loadPNG(png_path)
-    default_path = os.path.join(ICON_PATH, "default.png")
-    if os.path.exists(default_path): return loadPNG(default_path)
+# --- Global Helpers ---
+def load_png(path):
+    if os.path.exists(path): return loadPNG(path)
     return None
 
-# --- 2. Classification Logic ---
-def is_adult_content(text):
+def get_genre_icon(nibble):
+    icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x9: "science.png"}
+    icon_name = icon_map.get(nibble, "default.png")
+    return load_png(os.path.join(ICON_PATH, icon_name)) or load_png(os.path.join(ICON_PATH, "default.png"))
+
+def is_adult(text):
     if not text: return False
-    text_lower = text.lower()
-    if any(k in text_lower for k in ADULT_KEYWORDS):
-        if "essex" not in text_lower and "sussex" not in text_lower and "middlesex" not in text_lower:
-             return True
-    return False
+    t = text.lower()
+    return any(k in t for k in ADULT_KEYWORDS) and "essex" not in t and "sussex" not in t
 
-def classify_content_hybrid(channel_name, event_name, allow_api=False):
-    if is_adult_content(channel_name) or is_adult_content(event_name): return None, None, False
-    ch_lower = channel_name.lower()
-    evt_lower = event_name.lower() if event_name else ""
+# --- ENHANCED CLASSIFICATION LOGIC ---
+def classify_enhanced(channel_name, event_name):
+    """
+    Tier 1: Check Channel Name (Strict Lock)
+    Tier 2: Check Event Name (Fallback)
+    """
+    ch_clean = channel_name.lower()
+    evt_clean = event_name.lower() if event_name else ""
+    
+    if is_adult(ch_clean) or is_adult(evt_clean):
+        return None, None # Filter out adult
 
-    # FAST OFFLINE CHECK
-    if any(k in ch_lower for k in ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan"]): return "Kids", 0x5, False
-    if any(k in evt_lower for k in ["cartoon", "animation", "anime", "sponge", "patrol", "mouse", "tom and jerry"]): return "Kids", 0x5, False
+    # TIER 1: Channel Name Lock
+    # If the channel name indicates a specific genre, we ignore the event name.
+    # This prevents "Sky Sports News" being classified as News if you prefer Sports, 
+    # or "MBC 2" being classified as News just because news is on.
     
-    if any(k in ch_lower for k in ["sport", "soccer", "football", "kora", "racing", "f1", "wwe", "ufc", "fight", "arena", "calcio", "match", "dazn", "nba", "espn", "bein", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "euro", "bt sport", "sky sport", "tsn"]): return "Sports", 0x4, False
-    if any(k in evt_lower for k in [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "tournament", "championship", "derby"]): return "Sports", 0x4, False
-    
-    if any(k in ch_lower for k in ["news", "akhbar", "arabia", "jazeera", "hadath", "bbc", "cnn", "cnbc", "bloomberg", "weather", "trt", "lbc", "skynews", "france 24", "russia today", "euronews", "tagesschau", "welt", "al araby", "alghad", "asharq", "watania", "ekhbariya", "dw"]): return "News", 0x2, False
-    
-    if any(k in ch_lower for k in ["doc", "history", "historia", "nat geo", "wild", "planet", "earth", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "geographic", "arte", "phoenix", "explorer"]): return "Documentary", 0x9, False
-    
-    if any(k in ch_lower for k in ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", "ewtn", "bibel", "makkah", "madinah", "islam", "church"]): return "Religious", 0x7, False
-    
-    if any(k in ch_lower for k in ["music", "song", "clip", "mix", "fm", "radio", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits"]): return "Music", 0x6, False
-    
-    if any(k in ch_lower for k in ["movie", "film", "cinema", "cine", "kino", "aflam", "vod", "box office", "hbo", "sky cinema", "mbc 2", "mbc max", "mbc action", "rotana cinema", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "filmbox", "sony max"]): return "Movies", 0x1, False
-    
-    if any(k in ch_lower for k in ["drama", "series", "mosalsalat", "hikaya", "show", "tv", "general", "family", "novelas", "soaps", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "rotana khalijia", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "bbc one", "itv", "rai 1", "canale 5", "tf1", "zdf", "rtl", "mediaset"]): return "Shows", 0x3, False
+    for cat, (ch_kws, _) in CATEGORIES.items():
+        for kw in ch_kws:
+            if kw in ch_clean:
+                return get_cat_data(cat)
 
-    # AI Fallback (Cached Only during bulk scan)
-    cache_key = f"{channel_name} {event_name}".lower().strip()
-    if cache_key in AI_CACHE:
-        return AI_CACHE[cache_key][0], AI_CACHE[cache_key][1], True
+    # TIER 2: Event Name Scan
+    # Only if channel is generic (like "Rai 1" or "BBC One")
+    for cat, (_, evt_kws) in CATEGORIES.items():
+        for kw in evt_kws:
+            if kw in evt_clean:
+                return get_cat_data(cat)
 
-    return "General/Other", 0x0, False
+    # TIER 3: Default
+    return ("General", 0x3)
+
+def get_cat_data(cat_name):
+    mapping = {
+        "Movies": 0x1, "News": 0x2, "Shows": 0x3, "Sports": 0x4,
+        "Kids": 0x5, "Music": 0x6, "Religious": 0x7, "Documentary": 0x9
+    }
+    return (cat_name, mapping.get(cat_name, 0x0))
 
 def clean_channel_name_fuzzy(name):
     n = name.lower()
@@ -214,13 +170,22 @@ def get_sat_position(ref_str):
     except: pass
     return ""
 
-def check_epg_dat_exists():
-    paths = ["/media/hdd/epg.dat", "/media/usb/epg.dat", "/etc/enigma2/epg.dat", "/hdd/epg.dat"]
-    for p in paths:
-        if os.path.exists(p): return True, p
-    return False, "Not Found"
+def translate_text(text, target_lang='en'):
+    if not text or len(text) < 2: return "No description."
+    if any('\u0600' <= char <= '\u06FF' for char in text[:30]): return text
+    try:
+        encoded = quote(text)
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={encoded}"
+        cmd = f"curl -k -s -A 'Mozilla/5.0' '{url}' > /tmp/wtw_trans.json"
+        os.system(cmd)
+        if os.path.exists("/tmp/wtw_trans.json"):
+            with open("/tmp/wtw_trans.json", "r") as f:
+                data = json.load(f)
+            return data[0][0][0] if data and data[0] else text
+    except: pass
+    return text
 
-# --- 4. List Builder ---
+# --- List Builder (Big Fonts) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
@@ -239,22 +204,20 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
-        MultiContentEntryPixmapAlphaTest(pos=(10, 7), size=(50, 50), png=icon_pixmap),
-        MultiContentEntryText(pos=(70, 2), size=(550, 30), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
-        MultiContentEntryText(pos=(70, 34), size=(550, 28), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
-        MultiContentEntryText(pos=(640, 2), size=(100, 60), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
-        MultiContentEntryText(pos=(750, 2), size=(190, 60), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=category_name, color=0xFFFF00, color_sel=0xFFFF00),
-        MultiContentEntryText(pos=(950, 2), size=(100, 60), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        MultiContentEntryPixmapAlphaTest(pos=(15, 12), size=(60, 60), png=icon_pixmap),
+        MultiContentEntryText(pos=(90, 5), size=(800, 40), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
+        MultiContentEntryText(pos=(90, 45), size=(800, 35), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        MultiContentEntryText(pos=(900, 10), size=(120, 65), font=0, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+        MultiContentEntryText(pos=(1030, 10), size=(130, 65), font=1, flags=RT_HALIGN_CENTER|RT_VALIGN_CENTER, text=category_name, color=0xFFFF00, color_sel=0xFFFF00),
+        MultiContentEntryText(pos=(1160, 10), size=(80, 65), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
     ]
     return res
 
-# --- 5. Configuration Screen ---
+# --- Configuration Screen ---
 class WhatToWatchSetup(ConfigListScreen, Screen):
-    skin = """<screen position="center,center" size="800,400" title="What to Watch AI Settings">
+    skin = """<screen position="center,center" size="800,400" title="Settings">
             <widget name="config" position="10,10" size="780,300" scrollbarMode="showOnDemand" />
-            <widget name="key_red" position="10,360" size="140,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#9f1313" transparent="0" />
-            <widget name="key_green" position="160,360" size="140,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#1f771f" transparent="0" />
-            <widget name="key_yellow" position="310,360" size="180,40" zPosition="1" font="Regular;20" halign="center" valign="center" backgroundColor="#a08500" transparent="0" />
+            <widget name="key_green" position="10,360" size="780,40" zPosition="1" font="Regular;24" halign="center" valign="center" backgroundColor="#1f771f" transparent="0" />
         </screen>"""
     def __init__(self, session):
         Screen.__init__(self, session)
@@ -262,13 +225,9 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
         self.list = []
         ConfigListScreen.__init__(self, self.list, session=self.session)
         self.createSetup()
-        self["key_red"] = Label("Cancel")
-        self["key_green"] = Label("Save")
-        self["key_yellow"] = Label("Test API")
-        
+        self["key_green"] = Label("Save Settings")
         self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
-            "red": self.cancel, "green": self.save, "yellow": self.test_api, 
-            "save": self.save, "cancel": self.cancel, "ok": self.save
+            "green": self.save, "save": self.save, "cancel": self.cancel, "ok": self.save
         }, -2)
 
     def createSetup(self):
@@ -279,15 +238,6 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
         self["config"].list = self.list
         self["config"].setList(self.list)
 
-    def test_api(self):
-        self.session.open(MessageBox, "Testing API (cURL)...", type=MessageBox.TYPE_INFO, timeout=2)
-        test_query = "BBC World News"
-        result, success = ask_gemini_category(test_query)
-        if success:
-            self.session.open(MessageBox, f"Success!\nAI classified '{test_query}' as: {result[0]}", MessageBox.TYPE_INFO)
-        else:
-            self.session.open(MessageBox, "Connection Failed!\nAPI Error or No Internet (Check cURL).", MessageBox.TYPE_ERROR)
-
     def save(self):
         for x in self["config"].list: x[1].save()
         config.plugins.WhatToWatch.save()
@@ -297,25 +247,27 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
         for x in self["config"].list: x[1].cancel()
         self.close()
 
-# --- 6. The GUI Screen ---
+# --- The GUI Screen ---
 class WhatToWatchScreen(Screen):
     skin = f"""
-        <screen position="center,center" size="1080,720" title="What to Watch v{VERSION}">
-            <widget name="status_label" position="15,15" size="1050,50" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" />
-            <widget name="event_list" position="15,80" size="1050,560" scrollbarMode="showOnDemand" />
+        <screen position="center,300" size="1260,420" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
+            <eLabel position="0,0" size="1260,420" backgroundColor="#181818" zPosition="-1" />
+            <widget name="status_label" position="20,10" size="1220,50" font="Regular;32" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
+            <widget name="event_list" position="10,70" size="1240,290" scrollbarMode="showOnDemand" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/red.png" position="15,650" size="40,40" alphatest="on" />
-            <ePixmap pixmap="skin_default/buttons/green.png" position="225,650" size="40,40" alphatest="on" />
-            <ePixmap pixmap="skin_default/buttons/yellow.png" position="435,650" size="40,40" alphatest="on" />
-            <ePixmap pixmap="skin_default/buttons/blue.png" position="645,650" size="40,40" alphatest="on" />
-            <ePixmap pixmap="skin_default/buttons/key_epg.png" position="855,650" size="40,40" alphatest="on" />
+            <ePixmap pixmap="skin_default/buttons/red.png" position="20,375" size="35,35" alphatest="on" />
+            <widget name="key_red" position="65,375" size="220,35" zPosition="1" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="key_red" position="60,655" size="150,35" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_green" position="270,655" size="150,35" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_yellow" position="480,655" size="150,35" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_blue" position="690,655" size="150,35" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
-            <widget name="key_epg" position="900,655" size="160,35" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" text="EPG Translate" />
-            <widget name="info_bar" position="15,695" size="1050,25" font="Regular;20" halign="center" valign="center" foregroundColor="#ffff00" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/green.png" position="300,375" size="35,35" alphatest="on" />
+            <widget name="key_green" position="345,375" size="220,35" zPosition="1" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            
+            <ePixmap pixmap="skin_default/buttons/yellow.png" position="580,375" size="35,35" alphatest="on" />
+            <widget name="key_yellow" position="625,375" size="220,35" zPosition="1" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            
+            <ePixmap pixmap="skin_default/buttons/blue.png" position="860,375" size="35,35" alphatest="on" />
+            <widget name="key_blue" position="905,375" size="220,35" zPosition="1" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            
+            <widget name="info_bar" position="950,15" size="300,40" font="Regular;22" halign="right" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
         </screen>
     """
 
@@ -323,16 +275,17 @@ class WhatToWatchScreen(Screen):
         Screen.__init__(self, session)
         self.session = session
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
-        self["event_list"].l.setFont(0, gFont("Regular", 28))
-        self["event_list"].l.setFont(1, gFont("Regular", 24))
-        self["event_list"].l.setItemHeight(65)
+        
+        self["event_list"].l.setFont(0, gFont("Regular", 34))
+        self["event_list"].l.setFont(1, gFont("Regular", 28))
+        self["event_list"].l.setItemHeight(85)
+        
         self["status_label"] = Label("Loading...")
         self["key_red"] = Label("Time: Now")
         self["key_green"] = Label("Refresh")
         self["key_yellow"] = Label("Category")
         self["key_blue"] = Label("Options")
-        self["key_epg"] = Label("EPG Translate") 
-        self["info_bar"] = Label("Press EPG/INFO to translate description")
+        self["info_bar"] = Label("Info: Translate")
 
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions", "InfoActions"], {
             "ok": self.zap_channel,
@@ -360,7 +313,6 @@ class WhatToWatchScreen(Screen):
         
         self.process_timer = eTimer()
         self.process_timer.callback.append(self.process_batch)
-        
         self.onLayoutFinish.append(self.start_full_rescan)
 
     def start_full_rescan(self):
@@ -400,7 +352,6 @@ class WhatToWatchScreen(Screen):
         if not self.raw_services:
             self.process_timer.stop()
             self["status_label"].setText(f"Done. {len(self.full_list)} events loaded.")
-            if config.plugins.WhatToWatch.enable_ai.value: save_ai_cache()
             return
 
         BATCH_SIZE = 10 
@@ -430,7 +381,7 @@ class WhatToWatchScreen(Screen):
                 event_name = event.getEventName()
                 if not event_name: continue
 
-                category, nibble, used_ai = classify_content_hybrid(s_name, event_name, allow_api=False)
+                category, nibble = classify_enhanced(s_name, event_name)
                 if category is None: continue 
 
                 clean_ch = clean_channel_name_fuzzy(s_name)
