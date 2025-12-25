@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 2.8 (Perfect Fit Edition)
+#  Version: 2.9 (Tall & Wide Edition)
 #  Author: reali22
-#  Description: optimized layout. No cut-off text. Smart abbreviations.
+#  Description: 595x864 UI. Time on far left (small). Red Button = Satellite.
 # ============================================================================
 
 import os
@@ -33,7 +33,7 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "2.8"
+VERSION = "2.9"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
@@ -157,13 +157,12 @@ def translate_text(text, target_lang='en'):
 
 def abbreviate_category(cat_name):
     subs = {
-        "Documentary": "Doc", "Religious": "Rel.", "Sports": "Spt",
-        "Movies": "Mov", "Entertainment": "Ent.", "General": "Gen",
-        "Kids": "Kid", "Music": "Mus", "News": "News"
+        "Documentary": "Docs", "Religious": "Relig.", "Sports": "Sport",
+        "Movies": "Movie", "Entertainment": "Ent.", "General": "Gen."
     }
     return subs.get(cat_name, cat_name[:4])
 
-# --- List Builder (Optimized Layout) ---
+# --- List Builder (New Layout: Time -> Icon -> Text) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
@@ -185,32 +184,32 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # --- CALCULATED LAYOUT (Width 555px) ---
-    # Col 1: Icon (50px)
-    # Col 2: Time (60px)
-    # Col 3: Texts (375px)
-    # Col 4: Info (60px)
-    
+    # --- LAYOUT (Width 595px) ---
+    # 1. Time (Far Left): x=5, w=60. (Font 2 Small)
+    # 2. Icon: x=70, w=50.
+    # 3. Texts: x=130, w=390.
+    # 4. Info: x=530, w=60.
+
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         
-        # 1. Icon (Far Left)
-        MultiContentEntryPixmapAlphaTest(pos=(5, 12), size=(50, 50), png=icon_pixmap),
-        
-        # 2. Time (Next to Icon)
-        MultiContentEntryText(pos=(60, 5), size=(60, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+        # 1. Time (Far Left, Small Font)
+        MultiContentEntryText(pos=(5, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
 
-        # 3. Channel Name (Middle)
-        MultiContentEntryText(pos=(125, 5), size=(365, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
+        # 2. Icon (Shifted Right)
+        MultiContentEntryPixmapAlphaTest(pos=(70, 12), size=(50, 50), png=icon_pixmap),
         
-        # 4. Event Name (Middle Below)
-        MultiContentEntryText(pos=(125, 30), size=(365, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        # 3. Channel Name (Wider)
+        MultiContentEntryText(pos=(130, 5), size=(390, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
+        
+        # 4. Event Name (Wider)
+        MultiContentEntryText(pos=(130, 30), size=(390, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
         
         # 5. Progress % (Top Right Edge)
-        MultiContentEntryText(pos=(495, 5), size=(55, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        MultiContentEntryText(pos=(530, 5), size=(60, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
         
         # 6. Abbreviated Category (Bottom Right Edge)
-        MultiContentEntryText(pos=(495, 30), size=(55, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
+        MultiContentEntryText(pos=(530, 30), size=(60, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
     ]
     return res
 
@@ -250,31 +249,31 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
 
 # --- The GUI Screen ---
 class WhatToWatchScreen(Screen):
-    # Position: Left Sidebar (0,0). Width=555. Height=720.
+    # Position: Left Sidebar (0,0). Width=595. Height=864.
     skin = f"""
-        <screen position="0,0" size="555,720" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
-            <eLabel position="0,0" size="555,720" backgroundColor="#181818" zPosition="-1" />
+        <screen position="0,0" size="595,864" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
+            <eLabel position="0,0" size="595,864" backgroundColor="#181818" zPosition="-1" />
             
-            <eLabel text="What to Watch" position="10,10" size="535,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
-            <eLabel text="By {AUTHOR}" position="10,45" size="535,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
+            <eLabel text="What to Watch" position="10,10" size="575,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
+            <eLabel text="By {AUTHOR}" position="10,45" size="575,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
 
-            <widget name="status_label" position="10,70" size="535,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <widget name="status_label" position="10,70" size="575,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="event_list" position="5,110" size="545,500" scrollbarMode="showOnDemand" transparent="1" />
+            <widget name="event_list" position="5,110" size="585,630" scrollbarMode="showOnDemand" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/red.png" position="20,620" size="25,25" alphatest="on" />
-            <widget name="key_red" position="55,620" size="210,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/red.png" position="20,760" size="25,25" alphatest="on" />
+            <widget name="key_red" position="55,760" size="230,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/yellow.png" position="20,660" size="25,25" alphatest="on" />
-            <widget name="key_yellow" position="55,660" size="210,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/yellow.png" position="20,800" size="25,25" alphatest="on" />
+            <widget name="key_yellow" position="55,800" size="230,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/green.png" position="280,620" size="25,25" alphatest="on" />
-            <widget name="key_green" position="315,620" size="210,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/green.png" position="300,760" size="25,25" alphatest="on" />
+            <widget name="key_green" position="335,760" size="230,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/blue.png" position="280,660" size="25,25" alphatest="on" />
-            <widget name="key_blue" position="315,660" size="210,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/blue.png" position="300,800" size="25,25" alphatest="on" />
+            <widget name="key_blue" position="335,800" size="230,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="info_bar" position="10,690" size="535,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
+            <widget name="info_bar" position="10,830" size="575,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
         </screen>
     """
 
@@ -283,9 +282,13 @@ class WhatToWatchScreen(Screen):
         self.session = session
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         
-        # RESIZED FONTS FOR BETTER FIT (28 Title / 24 Detail)
+        # FONTS:
+        # 0: Channel (Big)
+        # 1: Event (Medium)
+        # 2: Time (Small) - Added
         self["event_list"].l.setFont(0, gFont("Regular", 28)) 
         self["event_list"].l.setFont(1, gFont("Regular", 24)) 
+        self["event_list"].l.setFont(2, gFont("Regular", 20)) # New Small Font for Time
         self["event_list"].l.setItemHeight(80)
         
         self["status_label"] = Label("Loading...")
