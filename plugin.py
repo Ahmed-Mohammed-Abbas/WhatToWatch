@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.0 (Closer Columns)
+#  Version: 3.0 (Stable Update Fix)
 #  Author: reali22
-#  Description: 700x860 UI. Category/Progress moved much closer to Channel Name.
+#  Description: Crash-proof update function. 700x860 UI. Optimized Layout.
 # ============================================================================
 
 import os
@@ -124,7 +124,7 @@ def classify_enhanced(channel_name, event_name):
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
     
-    if is_adult(ch_clean) or is_adult(evt_clean): return None, None
+    if is_adult(ch_clean) or is_adult(evt_clean): return None
 
     for cat, (ch_kws, _) in CATEGORIES.items():
         for kw in ch_kws:
@@ -180,13 +180,13 @@ def translate_text(text, target_lang='en'):
 
 def abbreviate_category(cat_name):
     subs = {
-        "Documentary": "Doc.", "Religious": "Relig.", "Sports": "Sport",
+        "Documentary": "Doc.", "Religious": "Rel.", "Sports": "Sport",
         "Movies": "Movie", "Entertainment": "Ent.", "General": "Gen.",
         "Kids": "Kid", "Music": "Music", "News": "News"
     }
     return subs.get(cat_name, cat_name[:5])
 
-# --- List Builder (Closer Columns) ---
+# --- List Builder (Layout v4.7) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
@@ -217,30 +217,13 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             elif percent > 10: progress_color = 0x00FF00
     
     # --- LAYOUT (Total Width 700px) ---
-    # Col 1: Time (60px) -> Start 15
-    # Col 2: Icon (45px) -> Start 80
-    # Col 3: Text (390px) -> Start 135 (Ends at 525)
-    # Col 4: Info (110px) -> Start 530 (Ends at 640) -> 5px gap, 60px right margin
-
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
-        
-        # 1. Time
         MultiContentEntryText(pos=(15, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
-
-        # 2. Icon
         MultiContentEntryPixmapAlphaTest(pos=(80, 12), size=(45, 45), png=icon_pixmap),
-        
-        # 3. Channel Name (Reduced width)
         MultiContentEntryText(pos=(135, 5), size=(390, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
-        
-        # 4. Event Name (Reduced width)
         MultiContentEntryText(pos=(135, 30), size=(390, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
-        
-        # 5. Progress % (Shifted left, closer to text)
         MultiContentEntryText(pos=(530, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
-        
-        # 6. Category (Shifted left, closer to text)
         MultiContentEntryText(pos=(530, 30), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
     ]
     return res
@@ -285,26 +268,19 @@ class WhatToWatchScreen(Screen):
     skin = f"""
         <screen position="0,0" size="700,860" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
             <eLabel position="0,0" size="700,860" backgroundColor="#181818" zPosition="-1" />
-            
             <eLabel text="What to Watch" position="10,10" size="680,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
             <eLabel text="By {AUTHOR}" position="10,45" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
-
             <widget name="status_label" position="10,70" size="680,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
-            
             <widget name="event_list" position="5,110" size="690,630" scrollbarMode="showOnDemand" transparent="1" />
             
             <ePixmap pixmap="skin_default/buttons/red.png" position="20,760" size="25,25" alphatest="on" />
             <widget name="key_red" position="55,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
-            
             <ePixmap pixmap="skin_default/buttons/yellow.png" position="20,800" size="25,25" alphatest="on" />
             <widget name="key_yellow" position="55,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
-            
             <ePixmap pixmap="skin_default/buttons/green.png" position="350,760" size="25,25" alphatest="on" />
             <widget name="key_green" position="385,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
-            
             <ePixmap pixmap="skin_default/buttons/blue.png" position="350,800" size="25,25" alphatest="on" />
             <widget name="key_blue" position="385,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
-            
             <widget name="info_bar" position="10,830" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
         </screen>
     """
@@ -314,7 +290,6 @@ class WhatToWatchScreen(Screen):
         self.session = session
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         
-        # FONTS
         self["event_list"].l.setFont(0, gFont("Regular", 26)) 
         self["event_list"].l.setFont(1, gFont("Regular", 22)) 
         self["event_list"].l.setFont(2, gFont("Regular", 20)) 
@@ -454,13 +429,9 @@ class WhatToWatchScreen(Screen):
             if self.current_sat_filter and item["sat"] != self.current_sat_filter: continue
             filtered.append(item)
 
-        # PRIMARY SORT: Pinned first (0 for pinned, 1 for normal)
-        # SECONDARY SORT: User Mode
-        
         def get_sort_key(x):
             is_pinned = x["ref"] in PINNED_CHANNELS
             pin_score = 0 if is_pinned else 1
-            
             if self.sort_mode == 'category': return (pin_score, x["cat"], x["name"])
             elif self.sort_mode == 'channel': return (pin_score, x["name"])
             elif self.sort_mode == 'time': return (pin_score, x["start"])
@@ -543,18 +514,24 @@ class WhatToWatchScreen(Screen):
         if c: self.sort_mode = c[1]; self.rebuild_visual_list()
 
     def check_updates(self):
-        self.session.open(MessageBox, "Checking...", type=MessageBox.TYPE_INFO, timeout=2)
-        os.system(f"wget -qO /tmp/v {UPDATE_URL_VER}")
-        if os.path.exists("/tmp/v"):
-            with open("/tmp/v") as f: 
-                if f.read().strip() > VERSION:
-                    self.session.openWithCallback(self.do_upd, MessageBox, "Update Available!", MessageBox.TYPE_YESNO)
-                else:
-                    self.session.open(MessageBox, "Up to date.", MessageBox.TYPE_INFO)
+        try:
+            self.session.open(MessageBox, "Checking...", type=MessageBox.TYPE_INFO, timeout=2)
+            os.system(f"wget --no-check-certificate -qO /tmp/wtw_ver {UPDATE_URL_VER}")
+            if os.path.exists("/tmp/wtw_ver"):
+                with open("/tmp/wtw_ver", "r") as f:
+                    r_ver = f.read().strip()
+                    if r_ver > VERSION:
+                        self.session.openWithCallback(self.do_upd, MessageBox, f"Update {r_ver} available!", MessageBox.TYPE_YESNO)
+                    else:
+                        self.session.open(MessageBox, f"Up to date ({VERSION})", MessageBox.TYPE_INFO)
+            else:
+                self.session.open(MessageBox, "Check failed.", MessageBox.TYPE_ERROR)
+        except Exception as e:
+            self.session.open(MessageBox, f"Error: {str(e)}", MessageBox.TYPE_ERROR)
 
     def do_upd(self, c):
         if c:
-            os.system(f"wget -qO {PLUGIN_FILE_PATH} {UPDATE_URL_PY}")
+            os.system(f"wget --no-check-certificate -qO {PLUGIN_FILE_PATH} {UPDATE_URL_PY}")
             self.session.open(MessageBox, "Restarting...", type=MessageBox.TYPE_INFO, timeout=2)
             time.sleep(1); quitMainloop(3)
 
@@ -563,4 +540,4 @@ class WhatToWatchScreen(Screen):
         if cur: self.session.nav.playService(eServiceReference(cur[0][4]))
 
 def main(session, **kwargs): session.open(WhatToWatchScreen)
-def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description="EPG Browser by reali22", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
+def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description="Programs Browser by reali22", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
