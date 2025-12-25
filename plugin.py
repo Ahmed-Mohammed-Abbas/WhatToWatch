@@ -42,197 +42,118 @@ UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToW
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
 # --- SMART CATEGORY DATABASE ---
-# --- ENHANCED SMART CATEGORY DATABASE ---
-# Replace the entire CATEGORIES dictionary with this enhanced version
-
 CATEGORIES = {
     "Kids": (
-        # Channel keywords - Higher priority
-        ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", 
-         "majid", "dreamworks", "baby", "kika", "gulli", "clan", "cbeebies", "citv", "pop", 
-         "tiny", "junior", "jeem", "baraem", "fix & foxi", "duck", "kids", "child", "youth",
-         "tiji", "toyor", "طيور", "براعم", "سمسم", "كراميش"],
-        # Event keywords - More comprehensive
-        ["cartoon", "animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", 
-         "pig", "bear", "tales", "princess", "dragon", "lego", "pokemon", "paw patrol",
-         "peppa", "dora", "blues clues", "sesame", "muppet", "elmo", "barney", "teletubbies",
-         "power ranger", "transformer", "avenger", "spider-man", "spiderman", "batman", "superman",
-         "frozen", "moana", "toy story", "cars", "nemo", "incredibles", "shrek", "minion",
-         "teenage", "ninja turtle", "adventure time", "gravity falls", "ben 10", "bakugan",
-         "beyblade", "digimon", "yu-gi-oh", "doraemon", "shin chan", "conan", "detective",
-         "scooby", "looney", "bugs bunny", "daffy", "tweety", "sylvester", "popeye"]
+        ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "cbeebies", "citv", "pop", "tiny", "junior", "jeem", "baraem", "fix & foxi", "duck"],
+        ["cartoon", "animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "pig", "bear", "tales", "princess", "dragon", "lego", "pokemon"]
     ),
     "Sports": (
-        ["sport", "espn", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", 
-         "ad sport", "dubai sport", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", 
-         "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", 
-         "polsat sport", "match!", "setanta", "extreme", "tennis", "golf", "cricket", "rugby",
-         "nfl", "mlb", "nhl", "fifa", "olympics", "الرياضية", "كأس", "الكأس"],
-        [" vs ", " v ", "live:", "match", "cup", "league", "football", "soccer", "racing", 
-         "tournament", "championship", "derby", "qualifying", "final", "bundesliga", "laliga", 
-         "serie a", "premier league", "champions league", "europa league", "world cup",
-         "basketball", "tennis", "golf", "cricket", "rugby", "boxing", "mma", "wrestling",
-         "formula", "motogp", "rally", "cycling", "swimming", "athletics", "olympics",
-         "playoff", "semi-final", "quarter-final", "kick-off", "highlights", "goal",
-         "penalty", "overtime", "innings", "touchdown", "slam", "grand prix", "podium",
-         "ligue 1", "eredivisie", "primeira liga", "scottish premiership"]
+        ["sport", "espn", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport", "match!", "setanta", "extreme"],
+        [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "tournament", "championship", "derby", "qualifying", "final", "bundesliga", "laliga", "serie a", "premier league"]
     ),
     "News": (
-        ["news", "cnn", "bbc", "jazeera", "alarabiya", "hadath", "skynews", "cnbc", "bloomberg", 
-         "weather", "rt ", "france 24", "trt", "dw", "watania", "ekhbariya", "alaraby", "alghad", 
-         "asharq", "lbc", "tagesschau", "welt", "n-tv", "rai news", "24h", "fox news", "msnbc",
-         "nbc news", "abc news", "cbs news", "euronews", "press tv", "الإخبارية", "الحدث", "الأخبار"],
-        ["news", "journal", "report", "briefing", "update", "headline", "politics", "weather", 
-         "parliament", "breaking", "bulletin", "newscast", "press conference", "interview",
-         "debate", "election", "vote", "summit", "diplomatic", "crisis", "emergency",
-         "forecast", "stock market", "economy", "business news", "political", "government",
-         "president", "minister", "senate", "congress", "الأخبار", "نشرة", "تقرير"]
+        ["news", "cnn", "bbc", "jazeera", "alarabiya", "hadath", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw", "watania", "ekhbariya", "alaraby", "alghad", "asharq", "lbc", "tagesschau", "welt", "n-tv", "rai news", "24h"],
+        ["news", "journal", "report", "briefing", "update", "headline", "politics", "weather", "parliament", "breaking"]
     ),
     "Documentary": (
-        ["doc", "history", "historia", "nat geo", "national geographic", "wild", "planet", 
-         "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte", 
-         "phoenix", "explorer", "smithsonian", "eden", "viasat", "focus", "dmax", "curiosity",
-         "knowledge", "learning", "h2", "military", "biography", "وثائقي", "وثائقية"],
-        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", 
-         "survival", "ancient", "world war", "nature", "safari", "shark", "space", "cosmos",
-         "ocean", "jungle", "desert", "arctic", "antarctica", "volcano", "earthquake",
-         "dinosaur", "prehistoric", "civilization", "pharaoh", "rome", "egypt", "maya",
-         "investigation", "mystery", "crime scene", "forensic", "detective", "murder",
-         "serial killer", "biography", "life story", "behind", "secret", "untold",
-         "technology", "innovation", "invention", "science", "physics", "chemistry",
-         "biology", "astronomy", "geology", "archaeology", "anthropology", "explorer"]
+        ["doc", "history", "historia", "nat geo", "national geographic", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte", "phoenix", "explorer", "smithsonian", "eden", "viasat", "focus", "dmax"],
+        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "world war", "nature", "safari", "shark", "space"]
     ),
     "Movies": (
-        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "sky cinema", "mbc 2", 
-         "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", 
-         "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "filmbox", 
-         "sony max", "star movies", "wb tv", "universal", "starz", "showtime", "cinemax",
-         "أفلام", "سينما", "الأفلام"],
-        ["starring", "directed by", "director:", "cast:", "thriller", "action", "comedy", 
-         "drama", "horror", "sci-fi", "science fiction", "romance", "adventure", "blockbuster",
-         "western", "noir", "mystery", "suspense", "fantasy", "animated", "musical",
-         "biographical", "historical", "war film", "crime film", "gangster", "heist",
-         "martial arts", "superhero", "zombie", "vampire", "ghost", "monster",
-         "oscar", "academy award", "golden globe", "cannes", "venice", "berlin",
-         "premiere", "exclusive", "فيلم", "بطولة"]
+        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "sky cinema", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "filmbox", "sony max", "star movies", "wb tv"],
+        ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "blockbuster"]
     ),
     "Religious": (
-        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", 
-         "noursat", "god tv", "ewtn", "bibel", "makkah", "madinah", "islam", "church", 
-         "peace tv", "huda", "guide", "al-rahma", "القرآن", "الرسالة", "المجد", "الرحمة"],
-        ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh",
-         "sermon", "preacher", "imam", "priest", "rabbi", "holy", "sacred", "spiritual",
-         "faith", "religion", "pilgrimage", "hajj", "ramadan", "easter", "christmas",
-         "passover", "diwali", "vespers", "liturgy", "communion", "baptism", "confession",
-         "meditation", "contemplation", "صلاة", "دعاء", "تلاوة", "خطبة", "قرآن"]
+        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", "ewtn", "bibel", "makkah", "madinah", "islam", "church", "peace tv", "huda", "guide"],
+        ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh"]
     ),
     "Music": (
-        ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", 
-         "4fun", "eska", "polo", "kiss", "dance", "hits", "trace", "mezzo", "classica", 
-         "nrj", "radio", "fm", "vevo", "beat", "jam", "الموسيقى", "أغاني", "كليب"],
-        ["concert", "videoclip", "video clip", "music video", "hits", "top 40", "top 100", 
-         "playlist", "songs", "symphony", "orchestra", "festival", "live performance",
-         "acoustic", "unplugged", "remix", "mashup", "album", "single", "track",
-         "rock", "pop", "jazz", "classical", "hip hop", "rap", "r&b", "soul", "blues",
-         "country", "folk", "electronic", "techno", "house", "trance", "reggae",
-         "metal", "punk", "indie", "alternative", "opera", "choir", "band", "artist",
-         "singer", "musician", "guitarist", "pianist", "drummer", "أغنية", "موسيقى", "كليب"]
+        ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits", "trace", "mezzo", "classica", "nrj", "radio", "fm"],
+        ["concert", "videoclip", "hits", "top 40", "playlist", "songs", "symphony", "orchestra", "festival"]
     ),
     "Shows": (
-        ["drama", "series", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", 
-         "rotana drama", "rotana khalijia", "zee alwan", "zee tv", "star plus", "colors", 
-         "sony", "sky one", "sky atlantic", "fox", "comedy central", "syfy", "axn", "novelas", 
-         "bet", "e!", "lifetime", "hallmark", "freeform", "المسلسلات", "دراما", "مسلسل"],
-        ["episode", "season", "series", "show", "reality", "soap", "telenovela", "sitcom",
-         "talk show", "game show", "quiz", "competition", "talent", "cooking show",
-         "makeover", "home improvement", "dating", "bachelor", "survivor", "big brother",
-         "voice", "idol", "got talent", "master chef", "bake off", "fashion",
-         "drama series", "comedy series", "thriller series", "mystery series", "crime series",
-         "anthology", "miniseries", "special", "finale", "premiere", "pilot",
-         "تمثيلية", "حلقة", "موسم", "برنامج", "مسلسل"]
+        ["drama", "series", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "rotana drama", "rotana khalijia", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "fox", "comedy central", "syfy", "axn", "novelas", "bet", "e!"],
+        ["episode", "season", "series", "show", "reality", "soap", "telenovela", "sitcom"]
     )
 }
 
-# Enhanced adult keywords
-ADULT_KEYWORDS = ["xxx", "18+", "porn", "adult", "sex", "erotic", "brazzers", "hustler", 
-                  "playboy", "dorcel", "vivid", "redlight", "+18", "sexy", "nude", "naked"]
+ADULT_KEYWORDS = ["xxx", "18+", "porn", "adult", "sex", "erotic", "brazzers", "hustler", "playboy", "dorcel", "vivid", "redlight"]
 
-# --- ENHANCED CLASSIFICATION LOGIC WITH SCORING ---
-# Replace the classify_enhanced function with this improved version
+# --- Global Helpers ---
+def load_png(path):
+    if os.path.exists(path): return loadPNG(path)
+    return None
 
+def get_genre_icon(nibble):
+    icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x9: "science.png"}
+    icon_name = icon_map.get(nibble, "default.png")
+    return load_png(os.path.join(ICON_PATH, icon_name)) or load_png(os.path.join(ICON_PATH, "default.png"))
+
+def is_adult(text):
+    if not text: return False
+    t = text.lower()
+    return any(k in t for k in ADULT_KEYWORDS) and "essex" not in t and "sussex" not in t
+
+# --- ENHANCED CLASSIFICATION LOGIC ---
 def classify_enhanced(channel_name, event_name):
-    """
-    Enhanced multi-tier classification with keyword scoring.
-    Returns (category_name, genre_nibble) or (None, None) for adult content.
-    """
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
     
-    # Filter adult content first
-    if is_adult(ch_clean) or is_adult(evt_clean):
-        return None, None
+    if is_adult(ch_clean) or is_adult(evt_clean): return None, None
 
-    # TIER 1: Strong Channel Name Lock (Highest Priority)
-    # Direct channel name match - most reliable indicator
+    # TIER 1: Channel Name Lock
     for cat, (ch_kws, _) in CATEGORIES.items():
         for kw in ch_kws:
-            if kw in ch_clean:
-                return get_cat_data(cat)
+            if kw in ch_clean: return get_cat_data(cat)
 
-    # TIER 2: Event Name Scoring System (Medium Priority)
-    # Count and weight keyword matches for each category
-    category_scores = {}
+    # TIER 2: Event Name Scan
     for cat, (_, evt_kws) in CATEGORIES.items():
-        score = 0
         for kw in evt_kws:
-            if kw in evt_clean:
-                # Multi-word keywords are more specific - give higher weight
-                word_count = len(kw.split())
-                if word_count > 1:
-                    score += word_count * 2  # Double weight for multi-word matches
-                else:
-                    score += 1  # Single weight for single-word matches
-        
-        if score > 0:
-            category_scores[cat] = score
-    
-    # Return category with highest score if any matches found
-    if category_scores:
-        best_category = max(category_scores.items(), key=lambda x: x[1])[0]
-        return get_cat_data(best_category)
+            if kw in evt_clean: return get_cat_data(cat)
 
-    # TIER 3: Partial Channel Name Match (Lowest Priority)
-    # Weak indicators - only used as last resort
-    partial_channel_indicators = {
-        "Kids": ["kid", "child", "junior", "baby", "teen"],
-        "Sports": ["fc ", "team", "club", "athletic"],
-        "Movies": ["max", "premiere", "classic", "gold"],
-        "Shows": ["drama", "plus", "one", "prime"],
-        "Music": ["music", "melody", "song"],
-        "News": ["today", "now", "live"]
-    }
-    
-    for cat, indicators in partial_channel_indicators.items():
-        for ind in indicators:
-            if ind in ch_clean:
-                return get_cat_data(cat)
-
-    # Default fallback
     return ("General", 0x3)
 
-# Updated is_adult function with more false positive exclusions
-def is_adult(text):
-    """Check if text contains adult content keywords"""
-    if not text:
-        return False
-    t = text.lower()
-    # Check for adult keywords but exclude false positives
-    for keyword in ADULT_KEYWORDS:
-        if keyword in t:
-            # Exclude common false positives
-            if "essex" not in t and "sussex" not in t and "middlesex" not in t:
-                return True
-    return False 
+def get_cat_data(cat_name):
+    mapping = {
+        "Movies": 0x1, "News": 0x2, "Shows": 0x3, "Sports": 0x4,
+        "Kids": 0x5, "Music": 0x6, "Religious": 0x7, "Documentary": 0x9
+    }
+    return (cat_name, mapping.get(cat_name, 0x0))
+
+def clean_channel_name_fuzzy(name):
+    n = name.lower()
+    n = re.sub(r'\b(hd|sd|fhd|4k|uhd|hevc)\b', '', n)
+    n = re.sub(r'\+\d+', '', n) 
+    return re.sub(r'[\W_]+', '', n)
+
+def get_sat_position(ref_str):
+    if ref_str.startswith("4097:") or ref_str.startswith("5001:"): return "IPTV"
+    try:
+        parts = ref_str.split(":")
+        if len(parts) > 6:
+            ns_val = int(parts[6], 16)
+            orb_pos = (ns_val >> 16) & 0xFFFF
+            if orb_pos == 0xFFFF: return "DVB-T/C"
+            if orb_pos == 0: return ""
+            if orb_pos > 1800: return f"{(3600 - orb_pos)/10.0:.1f}W"
+            else: return f"{orb_pos/10.0:.1f}E"
+    except: pass
+    return ""
+
+def translate_text(text, target_lang='en'):
+    if not text or len(text) < 2: return "No description."
+    if any('\u0600' <= char <= '\u06FF' for char in text[:30]): return text
+    try:
+        encoded = quote(text)
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={encoded}"
+        cmd = f"curl -k -s -A 'Mozilla/5.0' '{url}' > /tmp/wtw_trans.json"
+        os.system(cmd)
+        if os.path.exists("/tmp/wtw_trans.json"):
+            with open("/tmp/wtw_trans.json", "r") as f:
+                data = json.load(f)
+            return data[0][0][0] if data and data[0] else text
+    except: pass
+    return text
 
 # --- List Builder (Wider Sidebar Layout) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
