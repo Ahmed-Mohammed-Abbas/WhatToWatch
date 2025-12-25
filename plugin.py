@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.2 (Crash Fix)
-#  Description: Fixed "RT_HALIGN_CENTER" NameError.
-#               Includes Big UI + Enhanced Tiered Sorting.
+#  Version: 3.3 (Infobar Edition)
+#  Author: reali22
+#  Description: Bottom-docked UI. Red Button = Satellite. Enhanced Sorting.
 # ============================================================================
 
 import os
@@ -23,7 +23,6 @@ from Components.MenuList import MenuList
 from Components.MultiContent import MultiContentEntryText, MultiContentEntryPixmapAlphaTest
 from Components.ConfigList import ConfigListScreen
 from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo, getConfigListEntry
-# FIX: Added RT_HALIGN_CENTER to imports below
 from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
@@ -34,7 +33,8 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.2"
+VERSION = "3.3"
+AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
@@ -175,7 +175,6 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # FIXED: RT_HALIGN_CENTER is now imported
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         MultiContentEntryPixmapAlphaTest(pos=(15, 12), size=(60, 60), png=icon_pixmap),
@@ -223,25 +222,29 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
 
 # --- The GUI Screen ---
 class WhatToWatchScreen(Screen):
+    # Position: Bottom-docked (y=420 to 720). Full Width (1280).
     skin = f"""
-        <screen position="center,300" size="1260,420" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
-            <eLabel position="0,0" size="1260,420" backgroundColor="#181818" zPosition="-1" />
-            <widget name="status_label" position="20,10" size="1220,50" font="Regular;32" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
-            <widget name="event_list" position="10,70" size="1240,290" scrollbarMode="showOnDemand" transparent="1" />
+        <screen position="0,420" size="1280,300" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
+            <eLabel position="0,0" size="1280,300" backgroundColor="#181818" zPosition="-1" />
             
-            <ePixmap pixmap="skin_default/buttons/red.png" position="20,375" size="35,35" alphatest="on" />
-            <widget name="key_red" position="65,375" size="220,35" zPosition="1" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <eLabel text="By {AUTHOR}" position="20,10" size="200,30" font="Regular;20" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
+            <widget name="status_label" position="230,10" size="800,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/green.png" position="300,375" size="35,35" alphatest="on" />
-            <widget name="key_green" position="345,375" size="220,35" zPosition="1" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <widget name="event_list" position="10,50" size="1260,200" scrollbarMode="showOnDemand" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/yellow.png" position="580,375" size="35,35" alphatest="on" />
-            <widget name="key_yellow" position="625,375" size="220,35" zPosition="1" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/red.png" position="20,260" size="30,30" alphatest="on" />
+            <widget name="key_red" position="60,260" size="220,30" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/blue.png" position="860,375" size="35,35" alphatest="on" />
-            <widget name="key_blue" position="905,375" size="220,35" zPosition="1" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/green.png" position="300,260" size="30,30" alphatest="on" />
+            <widget name="key_green" position="340,260" size="220,30" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="info_bar" position="950,15" size="300,40" font="Regular;22" halign="right" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/yellow.png" position="580,260" size="30,30" alphatest="on" />
+            <widget name="key_yellow" position="620,260" size="220,30" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            
+            <ePixmap pixmap="skin_default/buttons/blue.png" position="860,260" size="30,30" alphatest="on" />
+            <widget name="key_blue" position="900,260" size="220,30" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            
+            <widget name="info_bar" position="1120,260" size="140,30" font="Regular;20" halign="right" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
         </screen>
     """
 
@@ -255,7 +258,8 @@ class WhatToWatchScreen(Screen):
         self["event_list"].l.setItemHeight(85)
         
         self["status_label"] = Label("Loading...")
-        self["key_red"] = Label("Time: Now")
+        # RED BUTTON: Changed to Satellite Filter
+        self["key_red"] = Label("Satellite")
         self["key_green"] = Label("Refresh")
         self["key_yellow"] = Label("Category")
         self["key_blue"] = Label("Options")
@@ -264,7 +268,7 @@ class WhatToWatchScreen(Screen):
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions", "InfoActions"], {
             "ok": self.zap_channel,
             "cancel": self.close,
-            "red": self.toggle_time_filter,
+            "red": self.show_sat_menu,      # CHANGED: Red -> Satellite Menu
             "green": self.start_full_rescan,
             "yellow": self.cycle_category,
             "blue": self.show_options_menu,
@@ -282,8 +286,8 @@ class WhatToWatchScreen(Screen):
         self.current_sat_filter = None
         self.use_favorites = False
         self.sort_mode = 'category'
-        self.time_modes = [("Time: Now", 0), ("Time: +1h", 3600), ("Time: +2h", 7200), ("Time: Tonight", 14400)]
-        self.time_mode_index = 0
+        # Default scan looks for current events (time_offset=0)
+        self.lookup_time = int(time.time())
         
         self.process_timer = eTimer()
         self.process_timer.callback.append(self.process_batch)
@@ -320,6 +324,7 @@ class WhatToWatchScreen(Screen):
                 if len(self.raw_services) > 2000: break
 
         self["status_label"].setText(f"Found {len(self.raw_services)} channels. Processing...")
+        self.lookup_time = int(time.time()) # Update time
         self.process_timer.start(10, False)
 
     def process_batch(self):
@@ -330,10 +335,6 @@ class WhatToWatchScreen(Screen):
 
         BATCH_SIZE = 10 
         epg_cache = eEPGCache.getInstance()
-        current_time = int(time.time())
-        _, time_offset = self.time_modes[self.time_mode_index]
-        lookup_time = -1 if time_offset == 0 else current_time + time_offset
-        show_prog = (time_offset == 0)
 
         for _ in range(BATCH_SIZE):
             if not self.raw_services: break
@@ -343,13 +344,13 @@ class WhatToWatchScreen(Screen):
             
             try:
                 service_reference = eServiceReference(s_ref)
-                event = epg_cache.lookupEventTime(service_reference, lookup_time)
+                event = epg_cache.lookupEventTime(service_reference, self.lookup_time)
                 
                 if not event and (s_ref.startswith("4097:") or s_ref.startswith("5001:")):
                     parts = s_ref.split(":")
                     if len(parts) > 7:
                         clean_str = "1:0:1:" + ":".join(parts[3:7]) + ":0:0:0:"
-                        event = epg_cache.lookupEventTime(eServiceReference(clean_str), lookup_time)
+                        event = epg_cache.lookupEventTime(eServiceReference(clean_str), self.lookup_time)
 
                 if not event: continue
                 event_name = event.getEventName()
@@ -396,12 +397,11 @@ class WhatToWatchScreen(Screen):
         elif self.sort_mode == 'channel': filtered.sort(key=lambda x: x["name"])
         elif self.sort_mode == 'time': filtered.sort(key=lambda x: x["start"])
 
-        show_prog = (self.time_modes[self.time_mode_index][1] == 0)
         self.full_list = []
         for item in filtered:
             entry = build_list_entry(
                 item["cat"], item["name"], item["sat"], item["evt"], item["ref"], 
-                item["nib"], item["start"], item["dur"], show_prog
+                item["nib"], item["start"], item["dur"], True
             )
             self.full_list.append(entry)
 
@@ -418,10 +418,6 @@ class WhatToWatchScreen(Screen):
                 else: self.current_filter = None
             except: self.current_filter = None
         self.rebuild_visual_list()
-
-    def toggle_time_filter(self):
-        self.time_mode_index = (self.time_mode_index + 1) % len(self.time_modes)
-        self.start_full_rescan()
 
     def show_translated_info(self):
         current_selection = self["event_list"].getCurrent()
@@ -441,14 +437,13 @@ class WhatToWatchScreen(Screen):
         self.session.open(MessageBox, res, type=MessageBox.TYPE_INFO)
 
     def show_options_menu(self):
-        menu = [("Toggle Source", "src"), ("Filter Satellite", "sat"), ("Sort", "sort"), ("Update", "upd"), ("AI Settings", "ai")]
+        menu = [("Toggle Source", "src"), ("Sort", "sort"), ("Update", "upd"), ("AI Settings", "ai")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
 
     def menu_cb(self, choice):
         if not choice: return
         c = choice[1]
         if c == "src": self.use_favorites = not self.use_favorites; self.start_full_rescan()
-        elif c == "sat": self.show_sat_menu()
         elif c == "sort": self.show_sort_menu()
         elif c == "upd": self.check_updates()
         elif c == "ai": self.session.open(WhatToWatchSetup)
