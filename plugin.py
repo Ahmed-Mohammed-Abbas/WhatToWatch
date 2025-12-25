@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.1 (Enhanced Sorting + Big UI)
-#  Description: Bottom-aligned Big UI.
-#               New Tiered Sorting Engine (Channel Name Priority).
+#  Version: 3.2 (Crash Fix)
+#  Description: Fixed "RT_HALIGN_CENTER" NameError.
+#               Includes Big UI + Enhanced Tiered Sorting.
 # ============================================================================
 
 import os
@@ -23,7 +23,8 @@ from Components.MenuList import MenuList
 from Components.MultiContent import MultiContentEntryText, MultiContentEntryPixmapAlphaTest
 from Components.ConfigList import ConfigListScreen
 from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo, getConfigListEntry
-from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, loadPNG, quitMainloop, eTimer
+# FIX: Added RT_HALIGN_CENTER to imports below
+from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
@@ -33,7 +34,7 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.1"
+VERSION = "3.2"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
@@ -41,55 +42,37 @@ UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToW
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
 # --- SMART CATEGORY DATABASE ---
-# Tuple Format: ( [Channel Name Matches], [Event Title Matches] )
-
 CATEGORIES = {
     "Kids": (
-        # Channel Names (Strict)
         ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "cbeebies", "citv", "pop", "tiny", "junior", "jeem", "baraem", "fix & foxi", "duck"],
-        # Event Keywords
         ["cartoon", "animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "pig", "bear", "tales", "princess", "dragon", "lego", "pokemon"]
     ),
     "Sports": (
-        # Channel Names
         ["sport", "espn", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport", "match!", "setanta", "extreme"],
-        # Event Keywords
         [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "tournament", "championship", "derby", "qualifying", "final", "bundesliga", "laliga", "serie a", "premier league"]
     ),
     "News": (
-        # Channel Names
         ["news", "cnn", "bbc", "jazeera", "alarabiya", "hadath", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw", "watania", "ekhbariya", "alaraby", "alghad", "asharq", "lbc", "tagesschau", "welt", "n-tv", "rai news", "24h"],
-        # Event Keywords
         ["news", "journal", "report", "briefing", "update", "headline", "politics", "weather", "parliament", "breaking"]
     ),
     "Documentary": (
-        # Channel Names
         ["doc", "history", "historia", "nat geo", "national geographic", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte", "phoenix", "explorer", "smithsonian", "eden", "viasat", "focus", "dmax"],
-        # Event Keywords
         ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "world war", "nature", "safari", "shark", "space"]
     ),
     "Movies": (
-        # Channel Names
         ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "sky cinema", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "filmbox", "sony max", "star movies", "wb tv"],
-        # Event Keywords
         ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "blockbuster"]
     ),
     "Religious": (
-        # Channel Names
         ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", "ewtn", "bibel", "makkah", "madinah", "islam", "church", "peace tv", "huda", "guide"],
-        # Event Keywords
         ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh"]
     ),
     "Music": (
-        # Channel Names
         ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits", "trace", "mezzo", "classica", "nrj", "radio", "fm"],
-        # Event Keywords
         ["concert", "videoclip", "hits", "top 40", "playlist", "songs", "symphony", "orchestra", "festival"]
     ),
     "Shows": (
-        # Channel Names (Series/Entertainment)
         ["drama", "series", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "rotana drama", "rotana khalijia", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "fox", "comedy central", "syfy", "axn", "novelas", "bet", "e!"],
-        # Event Keywords
         ["episode", "season", "series", "show", "reality", "soap", "telenovela", "sitcom"]
     )
 }
@@ -113,34 +96,24 @@ def is_adult(text):
 
 # --- ENHANCED CLASSIFICATION LOGIC ---
 def classify_enhanced(channel_name, event_name):
-    """
-    Tier 1: Check Channel Name (Strict Lock)
-    Tier 2: Check Event Name (Fallback)
-    """
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
     
     if is_adult(ch_clean) or is_adult(evt_clean):
-        return None, None # Filter out adult
+        return None, None
 
     # TIER 1: Channel Name Lock
-    # If the channel name indicates a specific genre, we ignore the event name.
-    # This prevents "Sky Sports News" being classified as News if you prefer Sports, 
-    # or "MBC 2" being classified as News just because news is on.
-    
     for cat, (ch_kws, _) in CATEGORIES.items():
         for kw in ch_kws:
             if kw in ch_clean:
                 return get_cat_data(cat)
 
     # TIER 2: Event Name Scan
-    # Only if channel is generic (like "Rai 1" or "BBC One")
     for cat, (_, evt_kws) in CATEGORIES.items():
         for kw in evt_kws:
             if kw in evt_clean:
                 return get_cat_data(cat)
 
-    # TIER 3: Default
     return ("General", 0x3)
 
 def get_cat_data(cat_name):
@@ -202,6 +175,7 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
+    # FIXED: RT_HALIGN_CENTER is now imported
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         MultiContentEntryPixmapAlphaTest(pos=(15, 12), size=(60, 60), png=icon_pixmap),
