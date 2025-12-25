@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.2 (Tight Layout)
+#  Version: 3.4 (Mega Database + Tight Layout)
 #  Author: reali22
-#  Description: Reduced spacing between columns. Optimized for 635px width.
+#  Description: 635x860 UI. Hundreds of new channel definitions. Optimized fit.
 # ============================================================================
 
 import os
@@ -33,7 +33,7 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.2"
+VERSION = "3.4"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
@@ -42,39 +42,51 @@ PINNED_FILE = "/etc/enigma2/wtw_pinned.json"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
-# --- SMART CATEGORY DATABASE ---
+# --- EXPANDED SMART CATEGORY DATABASE ---
 CATEGORIES = {
     "Kids": (
-        ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "cbeebies", "citv", "pop", "tiny", "junior", "jeem", "baraem", "fix & foxi", "duck"],
-        ["cartoon", "animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "pig", "bear", "tales", "princess", "dragon", "lego", "pokemon"]
+        # Channels
+        ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "cbeebies", "citv", "pop", "tiny", "junior", "jeem", "baraem", "fix & foxi", "duck", "minimini", "teletoon", "discovery kids", "pbs kids", "cbabc", "y tv", "vrak"],
+        # Events
+        ["cartoon", "animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "pig", "bear", "tales", "princess", "dragon", "lego", "pokemon", "bluey", "peppa"]
     ),
     "Sports": (
-        ["sport", "espn", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport", "match!", "setanta", "extreme"],
-        [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "tournament", "championship", "derby", "qualifying", "final", "bundesliga", "laliga", "serie a", "premier league"]
+        # Channels
+        ["sport", "espn", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport", "match!", "setanta", "extreme", "gol", "optus", "supersport", "willow", "cricket", "fox sports", "ten sports", "sony six", "star sports"],
+        # Events
+        [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "tournament", "championship", "derby", "qualifying", "final", "bundesliga", "laliga", "serie a", "premier league", "nfl", "nhl", "mlb", "cricket", "rugby"]
     ),
     "News": (
-        ["news", "cnn", "bbc", "jazeera", "alarabiya", "hadath", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw", "watania", "ekhbariya", "alaraby", "alghad", "asharq", "lbc", "tagesschau", "welt", "n-tv", "rai news", "24h"],
-        ["news", "journal", "report", "briefing", "update", "headline", "politics", "weather", "parliament", "breaking"]
+        # Channels
+        ["news", "cnn", "bbc", "jazeera", "alarabiya", "hadath", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw", "watania", "ekhbariya", "alaraby", "alghad", "asharq", "lbc", "tagesschau", "welt", "n-tv", "rai news", "24h", "msnbc", "fox news", "ndtv", "euronews", "i24", "nhk world", "cctv", "telesur", "press tv"],
+        # Events
+        ["news", "journal", "report", "briefing", "update", "headline", "politics", "weather", "parliament", "breaking", "bulletin", "newshour"]
     ),
     "Documentary": (
-        ["doc", "history", "historia", "nat geo", "national geographic", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte", "phoenix", "explorer", "smithsonian", "eden", "viasat", "focus", "dmax"],
-        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "world war", "nature", "safari", "shark", "space"]
+        # Channels
+        ["doc", "history", "historia", "nat geo", "national geographic", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte", "phoenix", "explorer", "smithsonian", "eden", "viasat", "focus", "dmax", "planete", "ushuaia", "rmc decouverte", "yesterday", "pbs", "curiosity"],
+        # Events
+        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "world war", "nature", "safari", "shark", "space", "myth", "legend"]
     ),
     "Movies": (
-        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "sky cinema", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "filmbox", "sony max", "star movies", "wb tv"],
+        # Channels
+        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "sky cinema", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "filmbox", "sony max", "star movies", "wb tv", "mgm", "hallmark", "lifetime", "showtime", "cinemax", "starz", "epix"],
+        # Events
         ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "blockbuster"]
     ),
     "Religious": (
-        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", "ewtn", "bibel", "makkah", "madinah", "islam", "church", "peace tv", "huda", "guide"],
-        ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh"]
+        # Channels
+        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", "ewtn", "bibel", "makkah", "madinah", "islam", "church", "peace tv", "huda", "guide", "daystar", "tbn", "catholic", "emmanuel", "faith"],
+        # Events
+        ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh", "sermon", "liturgy"]
     ),
     "Music": (
-        ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits", "trace", "mezzo", "classica", "nrj", "radio", "fm"],
-        ["concert", "videoclip", "hits", "top 40", "playlist", "songs", "symphony", "orchestra", "festival"]
+        ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits", "trace", "mezzo", "classica", "nrj", "radio", "fm", "cmt", "bet j", "box hits", "clubland", "magic", "kerrang"],
+        ["concert", "videoclip", "hits", "top 40", "playlist", "songs", "symphony", "orchestra", "festival", "acoustic"]
     ),
     "Shows": (
-        ["drama", "series", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "rotana drama", "rotana khalijia", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "fox", "comedy central", "syfy", "axn", "novelas", "bet", "e!"],
-        ["episode", "season", "series", "show", "reality", "soap", "telenovela", "sitcom"]
+        ["drama", "series", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "rotana drama", "rotana khalijia", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "fox", "comedy central", "syfy", "axn", "novelas", "bet", "e!", "tlc", "bravo", "hgtv", "food network", "a&e", "usa network", "tnt", "tbs", "fx"],
+        ["episode", "season", "series", "show", "reality", "soap", "telenovela", "sitcom", "cooking", "game show"]
     )
 }
 
@@ -180,12 +192,13 @@ def translate_text(text, target_lang='en'):
 
 def abbreviate_category(cat_name):
     subs = {
-        "Documentary": "Docs", "Religious": "Relig.", "Sports": "Sport",
-        "Movies": "Movie", "Entertainment": "Ent.", "General": "Gen."
+        "Documentary": "Doc.", "Religious": "Rel.", "Sports": "Spt",
+        "Movies": "Mov", "Entertainment": "Ent.", "General": "Gen",
+        "Kids": "Kid", "Music": "Mus", "News": "News"
     }
-    return subs.get(cat_name, cat_name[:5])
+    return subs.get(cat_name, cat_name[:4])
 
-# --- List Builder (Tight Layout) ---
+# --- List Builder (Safe Margins) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
@@ -215,32 +228,35 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # --- TIGHT LAYOUT (Width 635px) ---
-    # Col 1: Time (50px) -> x=2
-    # Col 2: Icon (40px) -> x=55
-    # Col 3: Text (445px) -> x=100 (Was 115) -> Reduced Gap
-    # Col 4: Info (80px) -> x=550 (Was 555) -> Shifted Left
+    # --- SAFE LAYOUT (Total Width 635) ---
+    # Safe Left Margin: 12px
+    # Safe Right Margin: 10px (Ends at 625)
+    
+    # Time: x=12, w=55
+    # Icon: x=70, w=40
+    # Text: x=115, w=405 (Compressed to pull right side in)
+    # Info: x=525, w=100 (Pulled left to avoid edge)
 
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         
-        # 1. Time (Far Left)
-        MultiContentEntryText(pos=(2, 5), size=(50, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+        # 1. Time (Indented 12px)
+        MultiContentEntryText(pos=(12, 5), size=(55, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
 
-        # 2. Icon (Shifted Left)
-        MultiContentEntryPixmapAlphaTest(pos=(55, 12), size=(40, 40), png=icon_pixmap),
+        # 2. Icon (Shifted Right)
+        MultiContentEntryPixmapAlphaTest(pos=(70, 12), size=(40, 40), png=icon_pixmap),
         
-        # 3. Channel Name (Shifted Left, Wider)
-        MultiContentEntryText(pos=(100, 5), size=(445, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
+        # 3. Channel Name (Shifted Right)
+        MultiContentEntryText(pos=(115, 5), size=(405, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
         
         # 4. Event Name
-        MultiContentEntryText(pos=(100, 30), size=(445, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        MultiContentEntryText(pos=(115, 30), size=(405, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
         
-        # 5. Progress % (Shifted Left)
-        MultiContentEntryText(pos=(550, 5), size=(80, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        # 5. Progress % (Pulled Left from Edge)
+        MultiContentEntryText(pos=(525, 5), size=(100, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
         
-        # 6. Category (Shifted Left)
-        MultiContentEntryText(pos=(550, 30), size=(80, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
+        # 6. Category (Pulled Left from Edge)
+        MultiContentEntryText(pos=(525, 30), size=(100, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
     ]
     return res
 
