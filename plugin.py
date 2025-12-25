@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.0 (Text Only Edition)
+#  Version: 3.0 (Closer Columns)
 #  Author: reali22
-#  Description: 700x860 UI. Icons removed. Maximum text width.
+#  Description: 700x860 UI. Category/Progress moved much closer to Channel Name.
 # ============================================================================
 
 import os
@@ -20,10 +20,10 @@ from Screens.ChoiceBox import ChoiceBox
 from Components.ActionMap import ActionMap
 from Components.Label import Label
 from Components.MenuList import MenuList
-from Components.MultiContent import MultiContentEntryText
+from Components.MultiContent import MultiContentEntryText, MultiContentEntryPixmapAlphaTest
 from Components.ConfigList import ConfigListScreen
 from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo, getConfigListEntry
-from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, quitMainloop, eTimer
+from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
@@ -37,6 +37,7 @@ VERSION = "3.0"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
+ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
 PINNED_FILE = "/etc/enigma2/wtw_pinned.json"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
@@ -104,6 +105,15 @@ def toggle_pin(ref):
     return res
 
 # --- Global Helpers ---
+def load_png(path):
+    if os.path.exists(path): return loadPNG(path)
+    return None
+
+def get_genre_icon(nibble):
+    icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x9: "science.png"}
+    icon_name = icon_map.get(nibble, "default.png")
+    return load_png(os.path.join(ICON_PATH, icon_name)) or load_png(os.path.join(ICON_PATH, "default.png"))
+
 def is_adult(text):
     if not text: return False
     t = text.lower()
@@ -114,17 +124,24 @@ def classify_enhanced(channel_name, event_name):
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
     
-    if is_adult(ch_clean) or is_adult(evt_clean): return None
+    if is_adult(ch_clean) or is_adult(evt_clean): return None, None
 
     for cat, (ch_kws, _) in CATEGORIES.items():
         for kw in ch_kws:
-            if kw in ch_clean: return cat
+            if kw in ch_clean: return get_cat_data(cat)
 
     for cat, (_, evt_kws) in CATEGORIES.items():
         for kw in evt_kws:
-            if kw in evt_clean: return cat
+            if kw in evt_clean: return get_cat_data(cat)
 
-    return "General"
+    return ("General", 0x3)
+
+def get_cat_data(cat_name):
+    mapping = {
+        "Movies": 0x1, "News": 0x2, "Shows": 0x3, "Sports": 0x4,
+        "Kids": 0x5, "Music": 0x6, "Religious": 0x7, "Documentary": 0x9
+    }
+    return (cat_name, mapping.get(cat_name, 0x0))
 
 def clean_channel_name_fuzzy(name):
     n = name.lower()
@@ -163,14 +180,15 @@ def translate_text(text, target_lang='en'):
 
 def abbreviate_category(cat_name):
     subs = {
-        "Documentary": "Doc.", "Religious": "Rel.", "Sports": "Spt",
-        "Movies": "Mov", "Entertainment": "Ent.", "General": "Gen.",
+        "Documentary": "Doc.", "Religious": "Relig.", "Sports": "Sport",
+        "Movies": "Movie", "Entertainment": "Ent.", "General": "Gen.",
         "Kids": "Kid", "Music": "Music", "News": "News"
     }
     return subs.get(cat_name, cat_name[:5])
 
-# --- List Builder (No Icon) ---
-def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, start_time, duration, show_progress=True):
+# --- List Builder (Closer Columns) ---
+def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
+    icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
     is_pinned = service_ref in PINNED_CHANNELS
@@ -198,30 +216,32 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # --- NO ICON LAYOUT (Total Width 700px) ---
-    # Safe Margins: Left 15px, Right ends at 685px
-    
-    # 1. Time: x=15, w=60.
-    # 2. Text (Channel/Event): x=80, w=485. (Shifted Left because icon is gone)
-    # 3. Info (Progress/Cat): x=575, w=110.
+    # --- LAYOUT (Total Width 700px) ---
+    # Col 1: Time (60px) -> Start 15
+    # Col 2: Icon (45px) -> Start 80
+    # Col 3: Text (390px) -> Start 135 (Ends at 525)
+    # Col 4: Info (110px) -> Start 530 (Ends at 640) -> 5px gap, 60px right margin
 
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         
-        # 1. Time (Far Left)
+        # 1. Time
         MultiContentEntryText(pos=(15, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
 
-        # 2. Channel Name (Expanded Width)
-        MultiContentEntryText(pos=(80, 5), size=(485, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
+        # 2. Icon
+        MultiContentEntryPixmapAlphaTest(pos=(80, 12), size=(45, 45), png=icon_pixmap),
         
-        # 3. Event Name (Expanded Width)
-        MultiContentEntryText(pos=(80, 30), size=(485, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        # 3. Channel Name (Reduced width)
+        MultiContentEntryText(pos=(135, 5), size=(390, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
         
-        # 4. Progress % (Anchored Right)
-        MultiContentEntryText(pos=(575, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        # 4. Event Name (Reduced width)
+        MultiContentEntryText(pos=(135, 30), size=(390, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
         
-        # 5. Category (Anchored Right)
-        MultiContentEntryText(pos=(575, 30), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
+        # 5. Progress % (Shifted left, closer to text)
+        MultiContentEntryText(pos=(530, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        
+        # 6. Category (Shifted left, closer to text)
+        MultiContentEntryText(pos=(530, 30), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
     ]
     return res
 
@@ -397,7 +417,7 @@ class WhatToWatchScreen(Screen):
                 event_name = event.getEventName()
                 if not event_name: continue
 
-                category = classify_enhanced(s_name, event_name)
+                category, nibble = classify_enhanced(s_name, event_name)
                 if category is None: continue 
 
                 clean_ch = clean_channel_name_fuzzy(s_name)
@@ -408,7 +428,7 @@ class WhatToWatchScreen(Screen):
                 
                 entry_data = {
                     "cat": category, "name": s_name, "sat": sat_info, "evt": event_name, 
-                    "ref": s_ref, "start": start_time, "dur": duration, 
+                    "ref": s_ref, "nib": nibble, "start": start_time, "dur": duration, 
                     "hd": is_hd, "clean": clean_ch
                 }
 
@@ -434,6 +454,9 @@ class WhatToWatchScreen(Screen):
             if self.current_sat_filter and item["sat"] != self.current_sat_filter: continue
             filtered.append(item)
 
+        # PRIMARY SORT: Pinned first (0 for pinned, 1 for normal)
+        # SECONDARY SORT: User Mode
+        
         def get_sort_key(x):
             is_pinned = x["ref"] in PINNED_CHANNELS
             pin_score = 0 if is_pinned else 1
@@ -449,7 +472,7 @@ class WhatToWatchScreen(Screen):
         for item in filtered:
             entry = build_list_entry(
                 item["cat"], item["name"], item["sat"], item["evt"], item["ref"], 
-                item["start"], item["dur"], True
+                item["nib"], item["start"], item["dur"], True
             )
             self.full_list.append(entry)
 
@@ -540,4 +563,4 @@ class WhatToWatchScreen(Screen):
         if cur: self.session.nav.playService(eServiceReference(cur[0][4]))
 
 def main(session, **kwargs): session.open(WhatToWatchScreen)
-def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description="Programs Browser by reali22", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
+def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description="EPG Browser by reali22", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
