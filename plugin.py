@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.1 (Pin/Favorites Edition)
+#  Version: 3.2 (Tight Layout)
 #  Author: reali22
-#  Description: Added "Pin Channel" feature. Pinned items stay at top.
+#  Description: Reduced spacing between columns. Optimized for 635px width.
 # ============================================================================
 
 import os
@@ -33,7 +33,7 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.1"
+VERSION = "3.2"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
@@ -185,24 +185,22 @@ def abbreviate_category(cat_name):
     }
     return subs.get(cat_name, cat_name[:5])
 
-# --- List Builder (Layout v4.0 + Pin Star) ---
+# --- List Builder (Tight Layout) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
-    # Check if pinned
     is_pinned = service_ref in PINNED_CHANNELS
     
-    # Format Channel Name (Add Star if Pinned)
     display_name = channel_name
     if sat_info:
         display_name = f"{channel_name} ({sat_info})"
     
     if is_pinned:
-        display_name = f"★ {display_name}" # Star Marker
-        name_color = 0xFFFF00 # Yellow for pinned
+        display_name = f"★ {display_name}"
+        name_color = 0xFFFF00
     else:
-        name_color = 0xFFFFFF # White for normal
+        name_color = 0xFFFFFF
 
     short_cat = abbreviate_category(category_name)
 
@@ -217,26 +215,32 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
+    # --- TIGHT LAYOUT (Width 635px) ---
+    # Col 1: Time (50px) -> x=2
+    # Col 2: Icon (40px) -> x=55
+    # Col 3: Text (445px) -> x=100 (Was 115) -> Reduced Gap
+    # Col 4: Info (80px) -> x=550 (Was 555) -> Shifted Left
+
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         
         # 1. Time (Far Left)
-        MultiContentEntryText(pos=(5, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+        MultiContentEntryText(pos=(2, 5), size=(50, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
 
-        # 2. Icon (Shifted Right)
-        MultiContentEntryPixmapAlphaTest(pos=(65, 12), size=(45, 45), png=icon_pixmap),
+        # 2. Icon (Shifted Left)
+        MultiContentEntryPixmapAlphaTest(pos=(55, 12), size=(40, 40), png=icon_pixmap),
         
-        # 3. Channel Name (Pinned = Yellow/Star)
-        MultiContentEntryText(pos=(115, 5), size=(435, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
+        # 3. Channel Name (Shifted Left, Wider)
+        MultiContentEntryText(pos=(100, 5), size=(445, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
         
         # 4. Event Name
-        MultiContentEntryText(pos=(115, 30), size=(435, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        MultiContentEntryText(pos=(100, 30), size=(445, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
         
-        # 5. Progress %
-        MultiContentEntryText(pos=(555, 5), size=(75, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        # 5. Progress % (Shifted Left)
+        MultiContentEntryText(pos=(550, 5), size=(80, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
         
-        # 6. Category
-        MultiContentEntryText(pos=(555, 30), size=(75, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
+        # 6. Category (Shifted Left)
+        MultiContentEntryText(pos=(550, 30), size=(80, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
     ]
     return res
 
@@ -309,6 +313,10 @@ class WhatToWatchScreen(Screen):
         self.session = session
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         
+        # FONTS:
+        # 0: Channel (Medium-Big)
+        # 1: Event (Medium)
+        # 2: Time (Small)
         self["event_list"].l.setFont(0, gFont("Regular", 26)) 
         self["event_list"].l.setFont(1, gFont("Regular", 22)) 
         self["event_list"].l.setFont(2, gFont("Regular", 20)) 
