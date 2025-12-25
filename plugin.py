@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 2.9 (Tall & Wide Edition)
+#  Version: 3.1 (Pin/Favorites Edition)
 #  Author: reali22
-#  Description: 595x864 UI. Time on far left (small). Red Button = Satellite.
+#  Description: Added "Pin Channel" feature. Pinned items stay at top.
 # ============================================================================
 
 import os
@@ -33,11 +33,12 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "2.9"
+VERSION = "3.1"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
+PINNED_FILE = "/etc/enigma2/wtw_pinned.json"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
@@ -79,6 +80,30 @@ CATEGORIES = {
 
 ADULT_KEYWORDS = ["xxx", "18+", "porn", "adult", "sex", "erotic", "brazzers", "hustler", "playboy", "dorcel", "vivid", "redlight"]
 
+# --- PINNED CHANNELS MANAGER ---
+PINNED_CHANNELS = []
+if os.path.exists(PINNED_FILE):
+    try:
+        with open(PINNED_FILE, 'r') as f:
+            PINNED_CHANNELS = json.load(f)
+    except: PINNED_CHANNELS = []
+
+def save_pinned():
+    try:
+        with open(PINNED_FILE, 'w') as f:
+            json.dump(PINNED_CHANNELS, f)
+    except: pass
+
+def toggle_pin(ref):
+    if ref in PINNED_CHANNELS:
+        PINNED_CHANNELS.remove(ref)
+        res = "Unpinned"
+    else:
+        PINNED_CHANNELS.append(ref)
+        res = "Pinned (Top)"
+    save_pinned()
+    return res
+
 # --- Global Helpers ---
 def load_png(path):
     if os.path.exists(path): return loadPNG(path)
@@ -101,12 +126,10 @@ def classify_enhanced(channel_name, event_name):
     
     if is_adult(ch_clean) or is_adult(evt_clean): return None, None
 
-    # TIER 1: Channel Name Lock
     for cat, (ch_kws, _) in CATEGORIES.items():
         for kw in ch_kws:
             if kw in ch_clean: return get_cat_data(cat)
 
-    # TIER 2: Event Name Scan
     for cat, (_, evt_kws) in CATEGORIES.items():
         for kw in evt_kws:
             if kw in evt_clean: return get_cat_data(cat)
@@ -160,16 +183,26 @@ def abbreviate_category(cat_name):
         "Documentary": "Docs", "Religious": "Relig.", "Sports": "Sport",
         "Movies": "Movie", "Entertainment": "Ent.", "General": "Gen."
     }
-    return subs.get(cat_name, cat_name[:4])
+    return subs.get(cat_name, cat_name[:5])
 
-# --- List Builder (New Layout: Time -> Icon -> Text) ---
+# --- List Builder (Layout v4.0 + Pin Star) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
+    # Check if pinned
+    is_pinned = service_ref in PINNED_CHANNELS
+    
+    # Format Channel Name (Add Star if Pinned)
     display_name = channel_name
     if sat_info:
         display_name = f"{channel_name} ({sat_info})"
+    
+    if is_pinned:
+        display_name = f"★ {display_name}" # Star Marker
+        name_color = 0xFFFF00 # Yellow for pinned
+    else:
+        name_color = 0xFFFFFF # White for normal
 
     short_cat = abbreviate_category(category_name)
 
@@ -184,32 +217,26 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # --- LAYOUT (Width 595px) ---
-    # 1. Time (Far Left): x=5, w=60. (Font 2 Small)
-    # 2. Icon: x=70, w=50.
-    # 3. Texts: x=130, w=390.
-    # 4. Info: x=530, w=60.
-
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         
-        # 1. Time (Far Left, Small Font)
+        # 1. Time (Far Left)
         MultiContentEntryText(pos=(5, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
 
         # 2. Icon (Shifted Right)
-        MultiContentEntryPixmapAlphaTest(pos=(70, 12), size=(50, 50), png=icon_pixmap),
+        MultiContentEntryPixmapAlphaTest(pos=(65, 12), size=(45, 45), png=icon_pixmap),
         
-        # 3. Channel Name (Wider)
-        MultiContentEntryText(pos=(130, 5), size=(390, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
+        # 3. Channel Name (Pinned = Yellow/Star)
+        MultiContentEntryText(pos=(115, 5), size=(435, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
         
-        # 4. Event Name (Wider)
-        MultiContentEntryText(pos=(130, 30), size=(390, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        # 4. Event Name
+        MultiContentEntryText(pos=(115, 30), size=(435, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
         
-        # 5. Progress % (Top Right Edge)
-        MultiContentEntryText(pos=(530, 5), size=(60, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        # 5. Progress %
+        MultiContentEntryText(pos=(555, 5), size=(75, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
         
-        # 6. Abbreviated Category (Bottom Right Edge)
-        MultiContentEntryText(pos=(530, 30), size=(60, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
+        # 6. Category
+        MultiContentEntryText(pos=(555, 30), size=(75, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
     ]
     return res
 
@@ -249,31 +276,31 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
 
 # --- The GUI Screen ---
 class WhatToWatchScreen(Screen):
-    # Position: Left Sidebar (0,0). Width=595. Height=864.
+    # Position: Left Sidebar. Width=635. Height=860.
     skin = f"""
-        <screen position="0,0" size="595,864" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
-            <eLabel position="0,0" size="595,864" backgroundColor="#181818" zPosition="-1" />
+        <screen position="0,0" size="635,860" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
+            <eLabel position="0,0" size="635,860" backgroundColor="#181818" zPosition="-1" />
             
-            <eLabel text="What to Watch" position="10,10" size="575,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
-            <eLabel text="By {AUTHOR}" position="10,45" size="575,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
+            <eLabel text="What to Watch" position="10,10" size="615,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
+            <eLabel text="By {AUTHOR}" position="10,45" size="615,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
 
-            <widget name="status_label" position="10,70" size="575,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <widget name="status_label" position="10,70" size="615,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="event_list" position="5,110" size="585,630" scrollbarMode="showOnDemand" transparent="1" />
+            <widget name="event_list" position="5,110" size="625,630" scrollbarMode="showOnDemand" transparent="1" />
             
             <ePixmap pixmap="skin_default/buttons/red.png" position="20,760" size="25,25" alphatest="on" />
-            <widget name="key_red" position="55,760" size="230,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <widget name="key_red" position="55,760" size="250,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
             <ePixmap pixmap="skin_default/buttons/yellow.png" position="20,800" size="25,25" alphatest="on" />
-            <widget name="key_yellow" position="55,800" size="230,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <widget name="key_yellow" position="55,800" size="250,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/green.png" position="300,760" size="25,25" alphatest="on" />
-            <widget name="key_green" position="335,760" size="230,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/green.png" position="320,760" size="25,25" alphatest="on" />
+            <widget name="key_green" position="355,760" size="250,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/blue.png" position="300,800" size="25,25" alphatest="on" />
-            <widget name="key_blue" position="335,800" size="230,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/blue.png" position="320,800" size="25,25" alphatest="on" />
+            <widget name="key_blue" position="355,800" size="250,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="info_bar" position="10,830" size="575,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
+            <widget name="info_bar" position="10,830" size="615,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
         </screen>
     """
 
@@ -282,13 +309,9 @@ class WhatToWatchScreen(Screen):
         self.session = session
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         
-        # FONTS:
-        # 0: Channel (Big)
-        # 1: Event (Medium)
-        # 2: Time (Small) - Added
-        self["event_list"].l.setFont(0, gFont("Regular", 28)) 
-        self["event_list"].l.setFont(1, gFont("Regular", 24)) 
-        self["event_list"].l.setFont(2, gFont("Regular", 20)) # New Small Font for Time
+        self["event_list"].l.setFont(0, gFont("Regular", 26)) 
+        self["event_list"].l.setFont(1, gFont("Regular", 22)) 
+        self["event_list"].l.setFont(2, gFont("Regular", 20)) 
         self["event_list"].l.setItemHeight(80)
         
         self["status_label"] = Label("Loading...")
@@ -425,9 +448,19 @@ class WhatToWatchScreen(Screen):
             if self.current_sat_filter and item["sat"] != self.current_sat_filter: continue
             filtered.append(item)
 
-        if self.sort_mode == 'category': filtered.sort(key=lambda x: (x["cat"], x["name"]))
-        elif self.sort_mode == 'channel': filtered.sort(key=lambda x: x["name"])
-        elif self.sort_mode == 'time': filtered.sort(key=lambda x: x["start"])
+        # PRIMARY SORT: Pinned first (0 for pinned, 1 for normal)
+        # SECONDARY SORT: User Mode
+        
+        def get_sort_key(x):
+            is_pinned = x["ref"] in PINNED_CHANNELS
+            pin_score = 0 if is_pinned else 1
+            
+            if self.sort_mode == 'category': return (pin_score, x["cat"], x["name"])
+            elif self.sort_mode == 'channel': return (pin_score, x["name"])
+            elif self.sort_mode == 'time': return (pin_score, x["start"])
+            return (pin_score, x["cat"])
+
+        filtered.sort(key=get_sort_key)
 
         self.full_list = []
         for item in filtered:
@@ -469,13 +502,20 @@ class WhatToWatchScreen(Screen):
         self.session.open(MessageBox, res, type=MessageBox.TYPE_INFO)
 
     def show_options_menu(self):
-        menu = [("Toggle Source", "src"), ("Sort", "sort"), ("Update", "upd"), ("AI Settings", "ai")]
+        menu = [("Pin/Unpin Channel", "pin"), ("Toggle Source", "src"), ("Sort", "sort"), ("Update", "upd"), ("AI Settings", "ai")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
 
     def menu_cb(self, choice):
         if not choice: return
         c = choice[1]
-        if c == "src": self.use_favorites = not self.use_favorites; self.start_full_rescan()
+        if c == "pin":
+            current_selection = self["event_list"].getCurrent()
+            if current_selection:
+                ref = current_selection[0][4]
+                msg = toggle_pin(ref)
+                self.rebuild_visual_list()
+                self.session.open(MessageBox, msg, type=MessageBox.TYPE_INFO, timeout=1)
+        elif c == "src": self.use_favorites = not self.use_favorites; self.start_full_rescan()
         elif c == "sort": self.show_sort_menu()
         elif c == "upd": self.check_updates()
         elif c == "ai": self.session.open(WhatToWatchSetup)
