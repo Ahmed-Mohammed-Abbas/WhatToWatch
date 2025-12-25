@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.7 (Optimized Layout)
+#  Version: 2.8 (Perfect Fit Edition)
 #  Author: reali22
-#  Description: 555px Sidebar. Time first. Tight margins. Abbreviated Cats.
+#  Description: optimized layout. No cut-off text. Smart abbreviations.
 # ============================================================================
 
 import os
@@ -33,7 +33,7 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.7"
+VERSION = "2.8"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
@@ -157,25 +157,23 @@ def translate_text(text, target_lang='en'):
 
 def abbreviate_category(cat_name):
     subs = {
-        "Documentary": "Docs", "Religious": "Relig.", "Sports": "Sport",
-        "Movies": "Movie", "Entertainment": "Entert.", "General": "Gen."
+        "Documentary": "Doc", "Religious": "Rel.", "Sports": "Spt",
+        "Movies": "Mov", "Entertainment": "Ent.", "General": "Gen",
+        "Kids": "Kid", "Music": "Mus", "News": "News"
     }
-    return subs.get(cat_name, cat_name)
+    return subs.get(cat_name, cat_name[:4])
 
 # --- List Builder (Optimized Layout) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
-    # Inline Satellite Info logic
     display_name = channel_name
     if sat_info:
         display_name = f"{channel_name} ({sat_info})"
 
-    # Shorten Category
     short_cat = abbreviate_category(category_name)
 
-    # Progress Logic
     progress_str = ""
     progress_color = 0xFFFFFF 
     if show_progress and duration > 0:
@@ -187,32 +185,32 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # --- TIGHT LAYOUT (Width 555px) ---
-    # Icon: 0-50px (Width 50)
-    # Time: 52-115px (Width ~63) -> Moved to front
-    # Text: 118-490px (Width ~372) -> Channel/Event Name
-    # Info: 495-555px (Width ~60) -> Progress/Cat (Right Aligned)
-
+    # --- CALCULATED LAYOUT (Width 555px) ---
+    # Col 1: Icon (50px)
+    # Col 2: Time (60px)
+    # Col 3: Texts (375px)
+    # Col 4: Info (60px)
+    
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         
-        # 1. Icon (Top Left)
-        MultiContentEntryPixmapAlphaTest(pos=(2, 12), size=(50, 50), png=icon_pixmap),
+        # 1. Icon (Far Left)
+        MultiContentEntryPixmapAlphaTest(pos=(5, 12), size=(50, 50), png=icon_pixmap),
         
-        # 2. Time (Now Before Name)
-        MultiContentEntryText(pos=(55, 5), size=(70, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+        # 2. Time (Next to Icon)
+        MultiContentEntryText(pos=(60, 5), size=(60, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
 
-        # 3. Channel Name (Tight to Time)
-        MultiContentEntryText(pos=(125, 5), size=(360, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
+        # 3. Channel Name (Middle)
+        MultiContentEntryText(pos=(125, 5), size=(365, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
         
-        # 4. Event Name (Below Channel, Aligned with Channel Name)
-        MultiContentEntryText(pos=(125, 30), size=(360, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        # 4. Event Name (Middle Below)
+        MultiContentEntryText(pos=(125, 30), size=(365, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
         
         # 5. Progress % (Top Right Edge)
-        MultiContentEntryText(pos=(490, 5), size=(60, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        MultiContentEntryText(pos=(495, 5), size=(55, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
         
         # 6. Abbreviated Category (Bottom Right Edge)
-        MultiContentEntryText(pos=(490, 30), size=(60, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
+        MultiContentEntryText(pos=(495, 30), size=(55, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
     ]
     return res
 
@@ -285,9 +283,9 @@ class WhatToWatchScreen(Screen):
         self.session = session
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         
-        # Font Configuration
-        self["event_list"].l.setFont(0, gFont("Regular", 22)) # Channel Name
-        self["event_list"].l.setFont(1, gFont("Regular", 18)) # Event/Time
+        # RESIZED FONTS FOR BETTER FIT (28 Title / 24 Detail)
+        self["event_list"].l.setFont(0, gFont("Regular", 28)) 
+        self["event_list"].l.setFont(1, gFont("Regular", 24)) 
         self["event_list"].l.setItemHeight(80)
         
         self["status_label"] = Label("Loading...")
@@ -516,4 +514,4 @@ class WhatToWatchScreen(Screen):
         if cur: self.session.nav.playService(eServiceReference(cur[0][4]))
 
 def main(session, **kwargs): session.open(WhatToWatchScreen)
-def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description="AI EPG Browser", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
+def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description="EPG Browser by reali22", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
