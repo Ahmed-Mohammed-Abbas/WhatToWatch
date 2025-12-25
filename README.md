@@ -40,3 +40,17 @@ Example: "Sky Cinema Action"
 Result: Movies Score: 15 (Winner!)
 
 This method is "fuzzy" and works across Arabic, English, French, German, Italian, and Spanish simultaneously without needing an internet connection.
+
+
+Version (v3.0) of the What to Watch plugin. 🚀 New Features & Enhancements (v3.0)
+ * Crash-Proof Update System: Implemented a "Safe Mode" for the update function using try/except blocks. This prevents the system from crashing (Green Screen of Death) if the update server is unreachable or the file is missing.
+ * Enhanced Connectivity: Added the --no-check-certificate flag to download commands, ensuring compatibility with older Enigma2 boxes that have outdated SSL certificates.
+ * Optimized Sidebar UI:
+   * Expanded Dimensions: Increased screen width to 700px and height to 860px to display more content without scrolling.
+   * Tight Layout: Reduced visual gaps between the Time, Icon, Channel Name, and Category columns for a cleaner, modern look.
+   * Smart Fit: Adjusted text column widths to prevent channel names and event titles from being cut off.
+ * Pinning System: Added a "Pin Channel" feature (via the Options menu) to keep your favorite channels permanently at the top of the list, marked with a star (★).
+ * Intelligent Categorization:
+   * Massive Database: Expanded the internal database to automatically recognize hundreds of additional channels (Sports, Kids, Movies, News, etc.).
+   * Smart Abbreviations: Long category names are automatically abbreviated (e.g., "Documentary" \rightarrow "Doc.", "Entertainment" \rightarrow "Ent.") to save screen space.
+ * Tiered Sorting Logic: Channels are sorted by Pinned Status \rightarrow Category \rightarrow Channel Name for the most intuitive browsing experience.
