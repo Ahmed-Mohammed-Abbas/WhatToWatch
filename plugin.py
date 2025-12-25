@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.4 (Sidebar Edition)
+#  Version: 3.5 (Wider Sidebar Edition)
 #  Author: reali22
-#  Description: Left Sidebar UI (1/3 Width). Red Button = Satellite.
+#  Description: Left Sidebar UI (20% wider). Red Button = Satellite.
 # ============================================================================
 
 import os
@@ -33,7 +33,7 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.4"
+VERSION = "3.5"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
@@ -42,120 +42,199 @@ UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToW
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
 # --- SMART CATEGORY DATABASE ---
+# --- ENHANCED SMART CATEGORY DATABASE ---
+# Replace the entire CATEGORIES dictionary with this enhanced version
+
 CATEGORIES = {
     "Kids": (
-        ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "cbeebies", "citv", "pop", "tiny", "junior", "jeem", "baraem", "fix & foxi", "duck"],
-        ["cartoon", "animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "pig", "bear", "tales", "princess", "dragon", "lego", "pokemon"]
+        # Channel keywords - Higher priority
+        ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", 
+         "majid", "dreamworks", "baby", "kika", "gulli", "clan", "cbeebies", "citv", "pop", 
+         "tiny", "junior", "jeem", "baraem", "fix & foxi", "duck", "kids", "child", "youth",
+         "tiji", "toyor", "طيور", "براعم", "سمسم", "كراميش"],
+        # Event keywords - More comprehensive
+        ["cartoon", "animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", 
+         "pig", "bear", "tales", "princess", "dragon", "lego", "pokemon", "paw patrol",
+         "peppa", "dora", "blues clues", "sesame", "muppet", "elmo", "barney", "teletubbies",
+         "power ranger", "transformer", "avenger", "spider-man", "spiderman", "batman", "superman",
+         "frozen", "moana", "toy story", "cars", "nemo", "incredibles", "shrek", "minion",
+         "teenage", "ninja turtle", "adventure time", "gravity falls", "ben 10", "bakugan",
+         "beyblade", "digimon", "yu-gi-oh", "doraemon", "shin chan", "conan", "detective",
+         "scooby", "looney", "bugs bunny", "daffy", "tweety", "sylvester", "popeye"]
     ),
     "Sports": (
-        ["sport", "espn", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport", "match!", "setanta", "extreme"],
-        [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "tournament", "championship", "derby", "qualifying", "final", "bundesliga", "laliga", "serie a", "premier league"]
+        ["sport", "espn", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", 
+         "ad sport", "dubai sport", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", 
+         "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", 
+         "polsat sport", "match!", "setanta", "extreme", "tennis", "golf", "cricket", "rugby",
+         "nfl", "mlb", "nhl", "fifa", "olympics", "الرياضية", "كأس", "الكأس"],
+        [" vs ", " v ", "live:", "match", "cup", "league", "football", "soccer", "racing", 
+         "tournament", "championship", "derby", "qualifying", "final", "bundesliga", "laliga", 
+         "serie a", "premier league", "champions league", "europa league", "world cup",
+         "basketball", "tennis", "golf", "cricket", "rugby", "boxing", "mma", "wrestling",
+         "formula", "motogp", "rally", "cycling", "swimming", "athletics", "olympics",
+         "playoff", "semi-final", "quarter-final", "kick-off", "highlights", "goal",
+         "penalty", "overtime", "innings", "touchdown", "slam", "grand prix", "podium",
+         "ligue 1", "eredivisie", "primeira liga", "scottish premiership"]
     ),
     "News": (
-        ["news", "cnn", "bbc", "jazeera", "alarabiya", "hadath", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw", "watania", "ekhbariya", "alaraby", "alghad", "asharq", "lbc", "tagesschau", "welt", "n-tv", "rai news", "24h"],
-        ["news", "journal", "report", "briefing", "update", "headline", "politics", "weather", "parliament", "breaking"]
+        ["news", "cnn", "bbc", "jazeera", "alarabiya", "hadath", "skynews", "cnbc", "bloomberg", 
+         "weather", "rt ", "france 24", "trt", "dw", "watania", "ekhbariya", "alaraby", "alghad", 
+         "asharq", "lbc", "tagesschau", "welt", "n-tv", "rai news", "24h", "fox news", "msnbc",
+         "nbc news", "abc news", "cbs news", "euronews", "press tv", "الإخبارية", "الحدث", "الأخبار"],
+        ["news", "journal", "report", "briefing", "update", "headline", "politics", "weather", 
+         "parliament", "breaking", "bulletin", "newscast", "press conference", "interview",
+         "debate", "election", "vote", "summit", "diplomatic", "crisis", "emergency",
+         "forecast", "stock market", "economy", "business news", "political", "government",
+         "president", "minister", "senate", "congress", "الأخبار", "نشرة", "تقرير"]
     ),
     "Documentary": (
-        ["doc", "history", "historia", "nat geo", "national geographic", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte", "phoenix", "explorer", "smithsonian", "eden", "viasat", "focus", "dmax"],
-        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "world war", "nature", "safari", "shark", "space"]
+        ["doc", "history", "historia", "nat geo", "national geographic", "wild", "planet", 
+         "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte", 
+         "phoenix", "explorer", "smithsonian", "eden", "viasat", "focus", "dmax", "curiosity",
+         "knowledge", "learning", "h2", "military", "biography", "وثائقي", "وثائقية"],
+        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", 
+         "survival", "ancient", "world war", "nature", "safari", "shark", "space", "cosmos",
+         "ocean", "jungle", "desert", "arctic", "antarctica", "volcano", "earthquake",
+         "dinosaur", "prehistoric", "civilization", "pharaoh", "rome", "egypt", "maya",
+         "investigation", "mystery", "crime scene", "forensic", "detective", "murder",
+         "serial killer", "biography", "life story", "behind", "secret", "untold",
+         "technology", "innovation", "invention", "science", "physics", "chemistry",
+         "biology", "astronomy", "geology", "archaeology", "anthropology", "explorer"]
     ),
     "Movies": (
-        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "sky cinema", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "filmbox", "sony max", "star movies", "wb tv"],
-        ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "blockbuster"]
+        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "sky cinema", "mbc 2", 
+         "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", 
+         "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "filmbox", 
+         "sony max", "star movies", "wb tv", "universal", "starz", "showtime", "cinemax",
+         "أفلام", "سينما", "الأفلام"],
+        ["starring", "directed by", "director:", "cast:", "thriller", "action", "comedy", 
+         "drama", "horror", "sci-fi", "science fiction", "romance", "adventure", "blockbuster",
+         "western", "noir", "mystery", "suspense", "fantasy", "animated", "musical",
+         "biographical", "historical", "war film", "crime film", "gangster", "heist",
+         "martial arts", "superhero", "zombie", "vampire", "ghost", "monster",
+         "oscar", "academy award", "golden globe", "cannes", "venice", "berlin",
+         "premiere", "exclusive", "فيلم", "بطولة"]
     ),
     "Religious": (
-        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", "ewtn", "bibel", "makkah", "madinah", "islam", "church", "peace tv", "huda", "guide"],
-        ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh"]
+        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", 
+         "noursat", "god tv", "ewtn", "bibel", "makkah", "madinah", "islam", "church", 
+         "peace tv", "huda", "guide", "al-rahma", "القرآن", "الرسالة", "المجد", "الرحمة"],
+        ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh",
+         "sermon", "preacher", "imam", "priest", "rabbi", "holy", "sacred", "spiritual",
+         "faith", "religion", "pilgrimage", "hajj", "ramadan", "easter", "christmas",
+         "passover", "diwali", "vespers", "liturgy", "communion", "baptism", "confession",
+         "meditation", "contemplation", "صلاة", "دعاء", "تلاوة", "خطبة", "قرآن"]
     ),
     "Music": (
-        ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits", "trace", "mezzo", "classica", "nrj", "radio", "fm"],
-        ["concert", "videoclip", "hits", "top 40", "playlist", "songs", "symphony", "orchestra", "festival"]
+        ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", 
+         "4fun", "eska", "polo", "kiss", "dance", "hits", "trace", "mezzo", "classica", 
+         "nrj", "radio", "fm", "vevo", "beat", "jam", "الموسيقى", "أغاني", "كليب"],
+        ["concert", "videoclip", "video clip", "music video", "hits", "top 40", "top 100", 
+         "playlist", "songs", "symphony", "orchestra", "festival", "live performance",
+         "acoustic", "unplugged", "remix", "mashup", "album", "single", "track",
+         "rock", "pop", "jazz", "classical", "hip hop", "rap", "r&b", "soul", "blues",
+         "country", "folk", "electronic", "techno", "house", "trance", "reggae",
+         "metal", "punk", "indie", "alternative", "opera", "choir", "band", "artist",
+         "singer", "musician", "guitarist", "pianist", "drummer", "أغنية", "موسيقى", "كليب"]
     ),
     "Shows": (
-        ["drama", "series", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "rotana drama", "rotana khalijia", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "fox", "comedy central", "syfy", "axn", "novelas", "bet", "e!"],
-        ["episode", "season", "series", "show", "reality", "soap", "telenovela", "sitcom"]
+        ["drama", "series", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", 
+         "rotana drama", "rotana khalijia", "zee alwan", "zee tv", "star plus", "colors", 
+         "sony", "sky one", "sky atlantic", "fox", "comedy central", "syfy", "axn", "novelas", 
+         "bet", "e!", "lifetime", "hallmark", "freeform", "المسلسلات", "دراما", "مسلسل"],
+        ["episode", "season", "series", "show", "reality", "soap", "telenovela", "sitcom",
+         "talk show", "game show", "quiz", "competition", "talent", "cooking show",
+         "makeover", "home improvement", "dating", "bachelor", "survivor", "big brother",
+         "voice", "idol", "got talent", "master chef", "bake off", "fashion",
+         "drama series", "comedy series", "thriller series", "mystery series", "crime series",
+         "anthology", "miniseries", "special", "finale", "premiere", "pilot",
+         "تمثيلية", "حلقة", "موسم", "برنامج", "مسلسل"]
     )
 }
 
-ADULT_KEYWORDS = ["xxx", "18+", "porn", "adult", "sex", "erotic", "brazzers", "hustler", "playboy", "dorcel", "vivid", "redlight"]
+# Enhanced adult keywords
+ADULT_KEYWORDS = ["xxx", "18+", "porn", "adult", "sex", "erotic", "brazzers", "hustler", 
+                  "playboy", "dorcel", "vivid", "redlight", "+18", "sexy", "nude", "naked"]
 
-# --- Global Helpers ---
-def load_png(path):
-    if os.path.exists(path): return loadPNG(path)
-    return None
+# --- ENHANCED CLASSIFICATION LOGIC WITH SCORING ---
+# Replace the classify_enhanced function with this improved version
 
-def get_genre_icon(nibble):
-    icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x9: "science.png"}
-    icon_name = icon_map.get(nibble, "default.png")
-    return load_png(os.path.join(ICON_PATH, icon_name)) or load_png(os.path.join(ICON_PATH, "default.png"))
-
-def is_adult(text):
-    if not text: return False
-    t = text.lower()
-    return any(k in t for k in ADULT_KEYWORDS) and "essex" not in t and "sussex" not in t
-
-# --- ENHANCED CLASSIFICATION LOGIC ---
 def classify_enhanced(channel_name, event_name):
+    """
+    Enhanced multi-tier classification with keyword scoring.
+    Returns (category_name, genre_nibble) or (None, None) for adult content.
+    """
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
     
-    if is_adult(ch_clean) or is_adult(evt_clean): return None, None
+    # Filter adult content first
+    if is_adult(ch_clean) or is_adult(evt_clean):
+        return None, None
 
-    # TIER 1: Channel Name Lock
+    # TIER 1: Strong Channel Name Lock (Highest Priority)
+    # Direct channel name match - most reliable indicator
     for cat, (ch_kws, _) in CATEGORIES.items():
         for kw in ch_kws:
-            if kw in ch_clean: return get_cat_data(cat)
+            if kw in ch_clean:
+                return get_cat_data(cat)
 
-    # TIER 2: Event Name Scan
+    # TIER 2: Event Name Scoring System (Medium Priority)
+    # Count and weight keyword matches for each category
+    category_scores = {}
     for cat, (_, evt_kws) in CATEGORIES.items():
+        score = 0
         for kw in evt_kws:
-            if kw in evt_clean: return get_cat_data(cat)
+            if kw in evt_clean:
+                # Multi-word keywords are more specific - give higher weight
+                word_count = len(kw.split())
+                if word_count > 1:
+                    score += word_count * 2  # Double weight for multi-word matches
+                else:
+                    score += 1  # Single weight for single-word matches
+        
+        if score > 0:
+            category_scores[cat] = score
+    
+    # Return category with highest score if any matches found
+    if category_scores:
+        best_category = max(category_scores.items(), key=lambda x: x[1])[0]
+        return get_cat_data(best_category)
 
+    # TIER 3: Partial Channel Name Match (Lowest Priority)
+    # Weak indicators - only used as last resort
+    partial_channel_indicators = {
+        "Kids": ["kid", "child", "junior", "baby", "teen"],
+        "Sports": ["fc ", "team", "club", "athletic"],
+        "Movies": ["max", "premiere", "classic", "gold"],
+        "Shows": ["drama", "plus", "one", "prime"],
+        "Music": ["music", "melody", "song"],
+        "News": ["today", "now", "live"]
+    }
+    
+    for cat, indicators in partial_channel_indicators.items():
+        for ind in indicators:
+            if ind in ch_clean:
+                return get_cat_data(cat)
+
+    # Default fallback
     return ("General", 0x3)
 
-def get_cat_data(cat_name):
-    mapping = {
-        "Movies": 0x1, "News": 0x2, "Shows": 0x3, "Sports": 0x4,
-        "Kids": 0x5, "Music": 0x6, "Religious": 0x7, "Documentary": 0x9
-    }
-    return (cat_name, mapping.get(cat_name, 0x0))
+# Updated is_adult function with more false positive exclusions
+def is_adult(text):
+    """Check if text contains adult content keywords"""
+    if not text:
+        return False
+    t = text.lower()
+    # Check for adult keywords but exclude false positives
+    for keyword in ADULT_KEYWORDS:
+        if keyword in t:
+            # Exclude common false positives
+            if "essex" not in t and "sussex" not in t and "middlesex" not in t:
+                return True
+    return False 
 
-def clean_channel_name_fuzzy(name):
-    n = name.lower()
-    n = re.sub(r'\b(hd|sd|fhd|4k|uhd|hevc)\b', '', n)
-    n = re.sub(r'\+\d+', '', n) 
-    return re.sub(r'[\W_]+', '', n)
-
-def get_sat_position(ref_str):
-    if ref_str.startswith("4097:") or ref_str.startswith("5001:"): return "IPTV"
-    try:
-        parts = ref_str.split(":")
-        if len(parts) > 6:
-            ns_val = int(parts[6], 16)
-            orb_pos = (ns_val >> 16) & 0xFFFF
-            if orb_pos == 0xFFFF: return "DVB-T/C"
-            if orb_pos == 0: return ""
-            if orb_pos > 1800: return f"{(3600 - orb_pos)/10.0:.1f}W"
-            else: return f"{orb_pos/10.0:.1f}E"
-    except: pass
-    return ""
-
-def translate_text(text, target_lang='en'):
-    if not text or len(text) < 2: return "No description."
-    if any('\u0600' <= char <= '\u06FF' for char in text[:30]): return text
-    try:
-        encoded = quote(text)
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={encoded}"
-        cmd = f"curl -k -s -A 'Mozilla/5.0' '{url}' > /tmp/wtw_trans.json"
-        os.system(cmd)
-        if os.path.exists("/tmp/wtw_trans.json"):
-            with open("/tmp/wtw_trans.json", "r") as f:
-                data = json.load(f)
-            return data[0][0][0] if data and data[0] else text
-    except: pass
-    return text
-
-# --- List Builder (Narrow Layout) ---
+# --- List Builder (Wider Sidebar Layout) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
@@ -172,23 +251,23 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # --- SIDEBAR LAYOUT (Total Width ~420) ---
+    # --- WIDER SIDEBAR LAYOUT (Total Width ~504) ---
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         # 1. Icon (Top Left)
         MultiContentEntryPixmapAlphaTest(pos=(10, 10), size=(50, 50), png=icon_pixmap),
         
-        # 2. Channel Name (Top Right)
-        MultiContentEntryText(pos=(70, 5), size=(260, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=channel_name, color=0xFFFFFF, color_sel=0xFFFFFF),
+        # 2. Channel Name (Top Right) - Wider
+        MultiContentEntryText(pos=(70, 5), size=(330, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=channel_name, color=0xFFFFFF, color_sel=0xFFFFFF),
         
-        # 3. Event Name (Below Channel)
-        MultiContentEntryText(pos=(70, 30), size=(260, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        # 3. Event Name (Below Channel) - Wider
+        MultiContentEntryText(pos=(70, 30), size=(330, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
         
-        # 4. Time (Far Right Top)
-        MultiContentEntryText(pos=(330, 5), size=(80, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+        # 4. Time (Far Right Top) - Shifted Right
+        MultiContentEntryText(pos=(410, 5), size=(80, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
         
-        # 5. Progress/Category (Far Right Bottom)
-        MultiContentEntryText(pos=(330, 30), size=(80, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        # 5. Progress/Category (Far Right Bottom) - Shifted Right
+        MultiContentEntryText(pos=(410, 30), size=(80, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
         
         # 6. Satellite Info (Tiny, below icon)
         MultiContentEntryText(pos=(10, 60), size=(50, 20), font=2, flags=RT_HALIGN_CENTER|RT_VALIGN_CENTER, text=sat_info, color=0x808080, color_sel=0x808080),
@@ -231,31 +310,31 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
 
 # --- The GUI Screen ---
 class WhatToWatchScreen(Screen):
-    # Position: Left Sidebar (0,0). Width=420. Height=720 (Full Height).
+    # Position: Left Sidebar (0,0). Width=504 (20% wider). Height=720 (Full Height).
     skin = f"""
-        <screen position="0,0" size="420,720" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
-            <eLabel position="0,0" size="420,720" backgroundColor="#181818" zPosition="-1" />
+        <screen position="0,0" size="504,720" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
+            <eLabel position="0,0" size="504,720" backgroundColor="#181818" zPosition="-1" />
             
-            <eLabel text="What to Watch" position="10,10" size="400,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
-            <eLabel text="By {AUTHOR}" position="10,45" size="400,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
+            <eLabel text="What to Watch" position="10,10" size="484,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
+            <eLabel text="By {AUTHOR}" position="10,45" size="484,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
 
-            <widget name="status_label" position="10,70" size="400,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <widget name="status_label" position="10,70" size="484,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="event_list" position="5,110" size="410,500" scrollbarMode="showOnDemand" transparent="1" />
+            <widget name="event_list" position="5,110" size="494,500" scrollbarMode="showOnDemand" transparent="1" />
             
             <ePixmap pixmap="skin_default/buttons/red.png" position="20,620" size="25,25" alphatest="on" />
-            <widget name="key_red" position="55,620" size="130,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
-            
-            <ePixmap pixmap="skin_default/buttons/green.png" position="220,620" size="25,25" alphatest="on" />
-            <widget name="key_green" position="255,620" size="130,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <widget name="key_red" position="55,620" size="190,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
             <ePixmap pixmap="skin_default/buttons/yellow.png" position="20,660" size="25,25" alphatest="on" />
-            <widget name="key_yellow" position="55,660" size="130,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <widget name="key_yellow" position="55,660" size="190,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/blue.png" position="220,660" size="25,25" alphatest="on" />
-            <widget name="key_blue" position="255,660" size="130,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/green.png" position="260,620" size="25,25" alphatest="on" />
+            <widget name="key_green" position="295,620" size="190,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="info_bar" position="10,690" size="400,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/blue.png" position="260,660" size="25,25" alphatest="on" />
+            <widget name="key_blue" position="295,660" size="190,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            
+            <widget name="info_bar" position="10,690" size="484,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
         </screen>
     """
 
