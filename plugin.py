@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Infobar Edition)
+#  Version: 3.4 (Sidebar Edition)
 #  Author: reali22
-#  Description: Bottom-docked UI. Red Button = Satellite. Enhanced Sorting.
+#  Description: Left Sidebar UI (1/3 Width). Red Button = Satellite.
 # ============================================================================
 
 import os
@@ -33,7 +33,7 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.3"
+VERSION = "3.4"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
@@ -99,20 +99,17 @@ def classify_enhanced(channel_name, event_name):
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
     
-    if is_adult(ch_clean) or is_adult(evt_clean):
-        return None, None
+    if is_adult(ch_clean) or is_adult(evt_clean): return None, None
 
     # TIER 1: Channel Name Lock
     for cat, (ch_kws, _) in CATEGORIES.items():
         for kw in ch_kws:
-            if kw in ch_clean:
-                return get_cat_data(cat)
+            if kw in ch_clean: return get_cat_data(cat)
 
     # TIER 2: Event Name Scan
     for cat, (_, evt_kws) in CATEGORIES.items():
         for kw in evt_kws:
-            if kw in evt_clean:
-                return get_cat_data(cat)
+            if kw in evt_clean: return get_cat_data(cat)
 
     return ("General", 0x3)
 
@@ -158,12 +155,12 @@ def translate_text(text, target_lang='en'):
     except: pass
     return text
 
-# --- List Builder (Big Fonts) ---
+# --- List Builder (Narrow Layout) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
     icon_pixmap = get_genre_icon(genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
-    display_name = f"{channel_name} ({sat_info})" if sat_info else channel_name
     
+    # Progress Logic
     progress_str = ""
     progress_color = 0xFFFFFF 
     if show_progress and duration > 0:
@@ -171,18 +168,30 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
         if start_time <= current_time < (start_time + duration):
             percent = int(((current_time - start_time) / float(duration)) * 100)
             if percent > 100: percent = 100
-            progress_str = f"({percent}%)"
+            progress_str = f"{percent}%"
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
+    # --- SIDEBAR LAYOUT (Total Width ~420) ---
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
-        MultiContentEntryPixmapAlphaTest(pos=(15, 12), size=(60, 60), png=icon_pixmap),
-        MultiContentEntryText(pos=(90, 5), size=(800, 40), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=0xFFFFFF, color_sel=0xFFFFFF),
-        MultiContentEntryText(pos=(90, 45), size=(800, 35), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
-        MultiContentEntryText(pos=(900, 10), size=(120, 65), font=0, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
-        MultiContentEntryText(pos=(1030, 10), size=(130, 65), font=1, flags=RT_HALIGN_CENTER|RT_VALIGN_CENTER, text=category_name, color=0xFFFF00, color_sel=0xFFFF00),
-        MultiContentEntryText(pos=(1160, 10), size=(80, 65), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        # 1. Icon (Top Left)
+        MultiContentEntryPixmapAlphaTest(pos=(10, 10), size=(50, 50), png=icon_pixmap),
+        
+        # 2. Channel Name (Top Right)
+        MultiContentEntryText(pos=(70, 5), size=(260, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=channel_name, color=0xFFFFFF, color_sel=0xFFFFFF),
+        
+        # 3. Event Name (Below Channel)
+        MultiContentEntryText(pos=(70, 30), size=(260, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        
+        # 4. Time (Far Right Top)
+        MultiContentEntryText(pos=(330, 5), size=(80, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+        
+        # 5. Progress/Category (Far Right Bottom)
+        MultiContentEntryText(pos=(330, 30), size=(80, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        
+        # 6. Satellite Info (Tiny, below icon)
+        MultiContentEntryText(pos=(10, 60), size=(50, 20), font=2, flags=RT_HALIGN_CENTER|RT_VALIGN_CENTER, text=sat_info, color=0x808080, color_sel=0x808080),
     ]
     return res
 
@@ -222,29 +231,31 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
 
 # --- The GUI Screen ---
 class WhatToWatchScreen(Screen):
-    # Position: Bottom-docked (y=420 to 720). Full Width (1280).
+    # Position: Left Sidebar (0,0). Width=420. Height=720 (Full Height).
     skin = f"""
-        <screen position="0,420" size="1280,300" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
-            <eLabel position="0,0" size="1280,300" backgroundColor="#181818" zPosition="-1" />
+        <screen position="0,0" size="420,720" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
+            <eLabel position="0,0" size="420,720" backgroundColor="#181818" zPosition="-1" />
             
-            <eLabel text="By {AUTHOR}" position="20,10" size="200,30" font="Regular;20" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
-            <widget name="status_label" position="230,10" size="800,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
+            <eLabel text="What to Watch" position="10,10" size="400,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
+            <eLabel text="By {AUTHOR}" position="10,45" size="400,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
+
+            <widget name="status_label" position="10,70" size="400,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="event_list" position="10,50" size="1260,200" scrollbarMode="showOnDemand" transparent="1" />
+            <widget name="event_list" position="5,110" size="410,500" scrollbarMode="showOnDemand" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/red.png" position="20,260" size="30,30" alphatest="on" />
-            <widget name="key_red" position="60,260" size="220,30" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/red.png" position="20,620" size="25,25" alphatest="on" />
+            <widget name="key_red" position="55,620" size="130,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/green.png" position="300,260" size="30,30" alphatest="on" />
-            <widget name="key_green" position="340,260" size="220,30" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/green.png" position="220,620" size="25,25" alphatest="on" />
+            <widget name="key_green" position="255,620" size="130,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/yellow.png" position="580,260" size="30,30" alphatest="on" />
-            <widget name="key_yellow" position="620,260" size="220,30" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/yellow.png" position="20,660" size="25,25" alphatest="on" />
+            <widget name="key_yellow" position="55,660" size="130,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/blue.png" position="860,260" size="30,30" alphatest="on" />
-            <widget name="key_blue" position="900,260" size="220,30" zPosition="1" font="Regular;24" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/blue.png" position="220,660" size="25,25" alphatest="on" />
+            <widget name="key_blue" position="255,660" size="130,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="info_bar" position="1120,260" size="140,30" font="Regular;20" halign="right" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
+            <widget name="info_bar" position="10,690" size="400,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
         </screen>
     """
 
@@ -253,22 +264,23 @@ class WhatToWatchScreen(Screen):
         self.session = session
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         
-        self["event_list"].l.setFont(0, gFont("Regular", 34))
-        self["event_list"].l.setFont(1, gFont("Regular", 28))
-        self["event_list"].l.setItemHeight(85)
+        # Font Configuration for Sidebar
+        self["event_list"].l.setFont(0, gFont("Regular", 22)) # Channel Name
+        self["event_list"].l.setFont(1, gFont("Regular", 18)) # Event/Time
+        self["event_list"].l.setFont(2, gFont("Regular", 14)) # Sat Info
+        self["event_list"].l.setItemHeight(80)
         
         self["status_label"] = Label("Loading...")
-        # RED BUTTON: Changed to Satellite Filter
         self["key_red"] = Label("Satellite")
         self["key_green"] = Label("Refresh")
         self["key_yellow"] = Label("Category")
         self["key_blue"] = Label("Options")
-        self["info_bar"] = Label("Info: Translate")
+        self["info_bar"] = Label("Press EPG/INFO to Translate")
 
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions", "InfoActions"], {
             "ok": self.zap_channel,
             "cancel": self.close,
-            "red": self.show_sat_menu,      # CHANGED: Red -> Satellite Menu
+            "red": self.show_sat_menu,
             "green": self.start_full_rescan,
             "yellow": self.cycle_category,
             "blue": self.show_options_menu,
@@ -286,7 +298,6 @@ class WhatToWatchScreen(Screen):
         self.current_sat_filter = None
         self.use_favorites = False
         self.sort_mode = 'category'
-        # Default scan looks for current events (time_offset=0)
         self.lookup_time = int(time.time())
         
         self.process_timer = eTimer()
@@ -302,7 +313,7 @@ class WhatToWatchScreen(Screen):
         self["event_list"].setList([])
         
         source_text = "Favorites" if self.use_favorites else "All Channels"
-        self["status_label"].setText(f"Loading {source_text} list...")
+        self["status_label"].setText(f"Loading {source_text}...")
         
         service_handler = eServiceCenter.getInstance()
         ref_str = '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "userbouquet.favourites.tv" ORDER BY bouquet' if self.use_favorites else '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "bouquets.tv" ORDER BY bouquet'
@@ -310,7 +321,7 @@ class WhatToWatchScreen(Screen):
         bouquet_list = service_handler.list(bouquet_root)
         
         if not bouquet_list:
-            self["status_label"].setText("Error: No Bouquets found.")
+            self["status_label"].setText("Error: No Bouquets.")
             return
 
         bouquet_content = bouquet_list.getContent("SN", True)
@@ -323,14 +334,14 @@ class WhatToWatchScreen(Screen):
                 self.raw_services.extend(services.getContent("SN", True))
                 if len(self.raw_services) > 2000: break
 
-        self["status_label"].setText(f"Found {len(self.raw_services)} channels. Processing...")
-        self.lookup_time = int(time.time()) # Update time
+        self["status_label"].setText(f"Scanning {len(self.raw_services)} channels...")
+        self.lookup_time = int(time.time())
         self.process_timer.start(10, False)
 
     def process_batch(self):
         if not self.raw_services:
             self.process_timer.stop()
-            self["status_label"].setText(f"Done. {len(self.full_list)} events loaded.")
+            self["status_label"].setText(f"Done. {len(self.full_list)} events.")
             return
 
         BATCH_SIZE = 10 
@@ -383,7 +394,7 @@ class WhatToWatchScreen(Screen):
         self.processed_count += BATCH_SIZE
         if self.processed_count % 50 == 0:
             self.rebuild_visual_list()
-            self["status_label"].setText(f"Scanning... {len(self.full_list)} channels found")
+            self["status_label"].setText(f"Scanning... {len(self.full_list)} found")
 
     def rebuild_visual_list(self):
         raw_list = list(self.unique_channels.values())
