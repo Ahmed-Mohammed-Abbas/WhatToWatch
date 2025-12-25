@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.4 (Mega Database + Tight Layout)
+#  Version: 3.0 (Text Only Edition)
 #  Author: reali22
-#  Description: 635x860 UI. Hundreds of new channel definitions. Optimized fit.
+#  Description: 700x860 UI. Icons removed. Maximum text width.
 # ============================================================================
 
 import os
@@ -20,10 +20,10 @@ from Screens.ChoiceBox import ChoiceBox
 from Components.ActionMap import ActionMap
 from Components.Label import Label
 from Components.MenuList import MenuList
-from Components.MultiContent import MultiContentEntryText, MultiContentEntryPixmapAlphaTest
+from Components.MultiContent import MultiContentEntryText
 from Components.ConfigList import ConfigListScreen
 from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo, getConfigListEntry
-from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer
+from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, quitMainloop, eTimer
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
@@ -33,51 +33,38 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.4"
+VERSION = "3.0"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
-ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
 PINNED_FILE = "/etc/enigma2/wtw_pinned.json"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
-# --- EXPANDED SMART CATEGORY DATABASE ---
+# --- SMART CATEGORY DATABASE ---
 CATEGORIES = {
     "Kids": (
-        # Channels
         ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "cbeebies", "citv", "pop", "tiny", "junior", "jeem", "baraem", "fix & foxi", "duck", "minimini", "teletoon", "discovery kids", "pbs kids", "cbabc", "y tv", "vrak"],
-        # Events
         ["cartoon", "animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "pig", "bear", "tales", "princess", "dragon", "lego", "pokemon", "bluey", "peppa"]
     ),
     "Sports": (
-        # Channels
         ["sport", "espn", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport", "match!", "setanta", "extreme", "gol", "optus", "supersport", "willow", "cricket", "fox sports", "ten sports", "sony six", "star sports"],
-        # Events
         [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "tournament", "championship", "derby", "qualifying", "final", "bundesliga", "laliga", "serie a", "premier league", "nfl", "nhl", "mlb", "cricket", "rugby"]
     ),
     "News": (
-        # Channels
         ["news", "cnn", "bbc", "jazeera", "alarabiya", "hadath", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw", "watania", "ekhbariya", "alaraby", "alghad", "asharq", "lbc", "tagesschau", "welt", "n-tv", "rai news", "24h", "msnbc", "fox news", "ndtv", "euronews", "i24", "nhk world", "cctv", "telesur", "press tv"],
-        # Events
         ["news", "journal", "report", "briefing", "update", "headline", "politics", "weather", "parliament", "breaking", "bulletin", "newshour"]
     ),
     "Documentary": (
-        # Channels
         ["doc", "history", "historia", "nat geo", "national geographic", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte", "phoenix", "explorer", "smithsonian", "eden", "viasat", "focus", "dmax", "planete", "ushuaia", "rmc decouverte", "yesterday", "pbs", "curiosity"],
-        # Events
         ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "world war", "nature", "safari", "shark", "space", "myth", "legend"]
     ),
     "Movies": (
-        # Channels
         ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "sky cinema", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "filmbox", "sony max", "star movies", "wb tv", "mgm", "hallmark", "lifetime", "showtime", "cinemax", "starz", "epix"],
-        # Events
         ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "blockbuster"]
     ),
     "Religious": (
-        # Channels
         ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", "ewtn", "bibel", "makkah", "madinah", "islam", "church", "peace tv", "huda", "guide", "daystar", "tbn", "catholic", "emmanuel", "faith"],
-        # Events
         ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh", "sermon", "liturgy"]
     ),
     "Music": (
@@ -117,15 +104,6 @@ def toggle_pin(ref):
     return res
 
 # --- Global Helpers ---
-def load_png(path):
-    if os.path.exists(path): return loadPNG(path)
-    return None
-
-def get_genre_icon(nibble):
-    icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x9: "science.png"}
-    icon_name = icon_map.get(nibble, "default.png")
-    return load_png(os.path.join(ICON_PATH, icon_name)) or load_png(os.path.join(ICON_PATH, "default.png"))
-
 def is_adult(text):
     if not text: return False
     t = text.lower()
@@ -136,24 +114,17 @@ def classify_enhanced(channel_name, event_name):
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
     
-    if is_adult(ch_clean) or is_adult(evt_clean): return None, None
+    if is_adult(ch_clean) or is_adult(evt_clean): return None
 
     for cat, (ch_kws, _) in CATEGORIES.items():
         for kw in ch_kws:
-            if kw in ch_clean: return get_cat_data(cat)
+            if kw in ch_clean: return cat
 
     for cat, (_, evt_kws) in CATEGORIES.items():
         for kw in evt_kws:
-            if kw in evt_clean: return get_cat_data(cat)
+            if kw in evt_clean: return cat
 
-    return ("General", 0x3)
-
-def get_cat_data(cat_name):
-    mapping = {
-        "Movies": 0x1, "News": 0x2, "Shows": 0x3, "Sports": 0x4,
-        "Kids": 0x5, "Music": 0x6, "Religious": 0x7, "Documentary": 0x9
-    }
-    return (cat_name, mapping.get(cat_name, 0x0))
+    return "General"
 
 def clean_channel_name_fuzzy(name):
     n = name.lower()
@@ -193,14 +164,13 @@ def translate_text(text, target_lang='en'):
 def abbreviate_category(cat_name):
     subs = {
         "Documentary": "Doc.", "Religious": "Rel.", "Sports": "Spt",
-        "Movies": "Mov", "Entertainment": "Ent.", "General": "Gen",
-        "Kids": "Kid", "Music": "Mus", "News": "News"
+        "Movies": "Mov", "Entertainment": "Ent.", "General": "Gen.",
+        "Kids": "Kid", "Music": "Music", "News": "News"
     }
-    return subs.get(cat_name, cat_name[:4])
+    return subs.get(cat_name, cat_name[:5])
 
-# --- List Builder (Safe Margins) ---
-def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
-    icon_pixmap = get_genre_icon(genre_nibble)
+# --- List Builder (No Icon) ---
+def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, start_time, duration, show_progress=True):
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
     is_pinned = service_ref in PINNED_CHANNELS
@@ -228,35 +198,30 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # --- SAFE LAYOUT (Total Width 635) ---
-    # Safe Left Margin: 12px
-    # Safe Right Margin: 10px (Ends at 625)
+    # --- NO ICON LAYOUT (Total Width 700px) ---
+    # Safe Margins: Left 15px, Right ends at 685px
     
-    # Time: x=12, w=55
-    # Icon: x=70, w=40
-    # Text: x=115, w=405 (Compressed to pull right side in)
-    # Info: x=525, w=100 (Pulled left to avoid edge)
+    # 1. Time: x=15, w=60.
+    # 2. Text (Channel/Event): x=80, w=485. (Shifted Left because icon is gone)
+    # 3. Info (Progress/Cat): x=575, w=110.
 
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         
-        # 1. Time (Indented 12px)
-        MultiContentEntryText(pos=(12, 5), size=(55, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+        # 1. Time (Far Left)
+        MultiContentEntryText(pos=(15, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
 
-        # 2. Icon (Shifted Right)
-        MultiContentEntryPixmapAlphaTest(pos=(70, 12), size=(40, 40), png=icon_pixmap),
+        # 2. Channel Name (Expanded Width)
+        MultiContentEntryText(pos=(80, 5), size=(485, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
         
-        # 3. Channel Name (Shifted Right)
-        MultiContentEntryText(pos=(115, 5), size=(405, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
+        # 3. Event Name (Expanded Width)
+        MultiContentEntryText(pos=(80, 30), size=(485, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
         
-        # 4. Event Name
-        MultiContentEntryText(pos=(115, 30), size=(405, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        # 4. Progress % (Anchored Right)
+        MultiContentEntryText(pos=(575, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
         
-        # 5. Progress % (Pulled Left from Edge)
-        MultiContentEntryText(pos=(525, 5), size=(100, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
-        
-        # 6. Category (Pulled Left from Edge)
-        MultiContentEntryText(pos=(525, 30), size=(100, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
+        # 5. Category (Anchored Right)
+        MultiContentEntryText(pos=(575, 30), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
     ]
     return res
 
@@ -296,31 +261,31 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
 
 # --- The GUI Screen ---
 class WhatToWatchScreen(Screen):
-    # Position: Left Sidebar. Width=635. Height=860.
+    # Position: Left Sidebar. Width=700. Height=860.
     skin = f"""
-        <screen position="0,0" size="635,860" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
-            <eLabel position="0,0" size="635,860" backgroundColor="#181818" zPosition="-1" />
+        <screen position="0,0" size="700,860" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
+            <eLabel position="0,0" size="700,860" backgroundColor="#181818" zPosition="-1" />
             
-            <eLabel text="What to Watch" position="10,10" size="615,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
-            <eLabel text="By {AUTHOR}" position="10,45" size="615,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
+            <eLabel text="What to Watch" position="10,10" size="680,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
+            <eLabel text="By {AUTHOR}" position="10,45" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
 
-            <widget name="status_label" position="10,70" size="615,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <widget name="status_label" position="10,70" size="680,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="event_list" position="5,110" size="625,630" scrollbarMode="showOnDemand" transparent="1" />
+            <widget name="event_list" position="5,110" size="690,630" scrollbarMode="showOnDemand" transparent="1" />
             
             <ePixmap pixmap="skin_default/buttons/red.png" position="20,760" size="25,25" alphatest="on" />
-            <widget name="key_red" position="55,760" size="250,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <widget name="key_red" position="55,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
             <ePixmap pixmap="skin_default/buttons/yellow.png" position="20,800" size="25,25" alphatest="on" />
-            <widget name="key_yellow" position="55,800" size="250,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <widget name="key_yellow" position="55,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/green.png" position="320,760" size="25,25" alphatest="on" />
-            <widget name="key_green" position="355,760" size="250,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/green.png" position="350,760" size="25,25" alphatest="on" />
+            <widget name="key_green" position="385,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <ePixmap pixmap="skin_default/buttons/blue.png" position="320,800" size="25,25" alphatest="on" />
-            <widget name="key_blue" position="355,800" size="250,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/blue.png" position="350,800" size="25,25" alphatest="on" />
+            <widget name="key_blue" position="385,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             
-            <widget name="info_bar" position="10,830" size="615,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
+            <widget name="info_bar" position="10,830" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
         </screen>
     """
 
@@ -329,10 +294,7 @@ class WhatToWatchScreen(Screen):
         self.session = session
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         
-        # FONTS:
-        # 0: Channel (Medium-Big)
-        # 1: Event (Medium)
-        # 2: Time (Small)
+        # FONTS
         self["event_list"].l.setFont(0, gFont("Regular", 26)) 
         self["event_list"].l.setFont(1, gFont("Regular", 22)) 
         self["event_list"].l.setFont(2, gFont("Regular", 20)) 
@@ -435,7 +397,7 @@ class WhatToWatchScreen(Screen):
                 event_name = event.getEventName()
                 if not event_name: continue
 
-                category, nibble = classify_enhanced(s_name, event_name)
+                category = classify_enhanced(s_name, event_name)
                 if category is None: continue 
 
                 clean_ch = clean_channel_name_fuzzy(s_name)
@@ -446,7 +408,7 @@ class WhatToWatchScreen(Screen):
                 
                 entry_data = {
                     "cat": category, "name": s_name, "sat": sat_info, "evt": event_name, 
-                    "ref": s_ref, "nib": nibble, "start": start_time, "dur": duration, 
+                    "ref": s_ref, "start": start_time, "dur": duration, 
                     "hd": is_hd, "clean": clean_ch
                 }
 
@@ -472,9 +434,6 @@ class WhatToWatchScreen(Screen):
             if self.current_sat_filter and item["sat"] != self.current_sat_filter: continue
             filtered.append(item)
 
-        # PRIMARY SORT: Pinned first (0 for pinned, 1 for normal)
-        # SECONDARY SORT: User Mode
-        
         def get_sort_key(x):
             is_pinned = x["ref"] in PINNED_CHANNELS
             pin_score = 0 if is_pinned else 1
@@ -490,7 +449,7 @@ class WhatToWatchScreen(Screen):
         for item in filtered:
             entry = build_list_entry(
                 item["cat"], item["name"], item["sat"], item["evt"], item["ref"], 
-                item["nib"], item["start"], item["dur"], True
+                item["start"], item["dur"], True
             )
             self.full_list.append(entry)
 
@@ -581,4 +540,4 @@ class WhatToWatchScreen(Screen):
         if cur: self.session.nav.playService(eServiceReference(cur[0][4]))
 
 def main(session, **kwargs): session.open(WhatToWatchScreen)
-def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description="EPG Browser by reali22", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
+def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description="Programs Browser by reali22", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
