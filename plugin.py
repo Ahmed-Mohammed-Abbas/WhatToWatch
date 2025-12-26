@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Audio Sink Fix)
+#  Version: 3.3 (Toggle Reminders)
 #  Author: reali22
-#  Description: Forced ALSA Sink for clear sound. Traffic Light Progress Colors.
+#  Description: Selecting a program again deletes the reminder (Toggle).
 # ============================================================================
 
 import os
@@ -228,7 +228,6 @@ class WTWMonitor:
         if dirty: save_watchlist()
 
     def trigger_event(self, item):
-        # FIX: Forced ALSA Sink for Clear Audio + Volume 0.8
         if os.path.exists(SOUND_FILE):
             try:
                 cmd = f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} audio-sink=\"alsasink\" volume=0.8 > /dev/null 2>&1 &"
@@ -256,13 +255,13 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     is_reminder = any(w['ref'] == service_ref and w['start_time'] == start_time for w in WATCHLIST)
     
     if is_reminder:
-        name_color = 0x00FF00 # Green for Reminder
+        name_color = 0x00FF00 
         display_name = f"🔔 {display_name}"
     elif is_pinned:
-        name_color = 0xFFFF00 # Yellow for Pinned
+        name_color = 0xFFFF00 
         display_name = f"★ {display_name}"
     else:
-        name_color = 0xFFFFFF # White
+        name_color = 0xFFFFFF 
 
     short_cat = category_name[:5]
     progress_str = ""
@@ -274,14 +273,9 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             percent = int(((current_time - start_time) / float(duration)) * 100)
             if percent > 100: percent = 100
             progress_str = f"{percent}%"
-            
-            # TRAFFIC LIGHT COLORS
-            if percent <= 35:
-                progress_color = 0x00FF00 # Green
-            elif percent <= 66:
-                progress_color = 0xFFFF00 # Yellow
-            else:
-                progress_color = 0xFF4040 # Red
+            if percent <= 35: progress_color = 0x00FF00 
+            elif percent <= 66: progress_color = 0xFFFF00 
+            else: progress_color = 0xFF4040 
 
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
@@ -336,8 +330,9 @@ class WhatToWatchScreen(Screen):
 
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions", "InfoActions"], {
             "ok": self.zap_channel,
+            "ok_long": self.add_reminder,
             "cancel": self.close,
-            "red": self.show_time_menu,
+            "red": self.toggle_time,
             "green": self.show_sat_menu,
             "yellow": self.cycle_category,
             "blue": self.show_options_menu,
@@ -442,14 +437,17 @@ class WhatToWatchScreen(Screen):
         self["status_label"].setText(status_text)
 
     def show_time_menu(self):
-        menu = [("Time: Now", 0), ("Time: +1 Hour", 3600), ("Time: +2 Hours", 7200), ("Time: +4 Hours", 14400), ("Time: +6 Hours", 21600), ("Time: +8 Hours", 28800)]
-        self.session.openWithCallback(self.time_menu_cb, ChoiceBox, title="Select Time Filter", list=menu)
-
-    def time_menu_cb(self, choice):
-        if choice:
-            self.time_offset = choice[1]
-            self["key_red"].setText(choice[0])
-            self.start_full_rescan()
+        times = [0, 3600, 7200, 14400, 21600, 28800]
+        try:
+            current_idx = times.index(self.time_offset)
+            next_idx = (current_idx + 1) % len(times)
+        except:
+            next_idx = 0
+        
+        self.time_offset = times[next_idx]
+        label_map = {0: "Time: Now", 3600: "Time: +1h", 7200: "Time: +2h", 14400: "Time: +4h", 21600: "Time: +6h", 28800: "Time: +8h"}
+        self["key_red"].setText(label_map.get(self.time_offset, "Time"))
+        self.start_full_rescan()
 
     def cycle_category(self):
         cats = sorted(list(set([x["cat"] for x in self.full_list])))
@@ -489,9 +487,23 @@ class WhatToWatchScreen(Screen):
         cur = self["event_list"].getCurrent()
         if not cur: return
         data = cur[0] 
+        
+        # Check if already in Watchlist
+        existing = [x for x in WATCHLIST if x['ref'] == data[4] and x['start_time'] == data[5]]
+        
+        if existing:
+            # REMOVE Reminder
+            WATCHLIST.remove(existing[0])
+            save_watchlist()
+            self.session.open(MessageBox, "Reminder Removed!", type=MessageBox.TYPE_INFO, timeout=2)
+            self.rebuild_visual_list() # Update list to remove bell icon
+            return
+
+        # NEW Reminder Check
         if data[5] <= int(time.time()):
             self.session.open(MessageBox, "Program already started! Cannot set reminder.", type=MessageBox.TYPE_ERROR)
             return
+            
         menu = [("Notification (At Start)", ("notify", 0)), ("Notification (5 min before)", ("notify", 300)), ("Notification (10 min before)", ("notify", 600)), ("Auto-Tune (Zap at Start)", ("zap", 0)), ("Weekly Notification", ("notify_week", 0))]
         self.session.openWithCallback(lambda c: self.save_reminder(c, data), ChoiceBox, title="Set Reminder", list=menu)
 
