@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Refined OK Menu)
+#  Version: 3.3 (Smart OK Menu Fix)
 #  Author: reali22
-#  Description: OK Button shows Zap + Reminder option.
+#  Description: Reminder option hidden for started programs to prevent errors.
 # ============================================================================
 
 import os
@@ -365,7 +365,7 @@ class WhatToWatchScreen(Screen):
         self["info_bar"] = Label("Press EPG/INFO to Translate")
 
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions", "InfoActions"], {
-            "ok": self.ok_pressed, # UPDATED
+            "ok": self.ok_pressed,
             "ok_long": self.add_reminder,
             "cancel": self.close,
             "red": self.toggle_time,
@@ -533,31 +533,43 @@ class WhatToWatchScreen(Screen):
         elif c == "upd": self.check_updates()
         elif c == "ai": self.session.open(WhatToWatchSetup)
 
-    # NEW: OK Button Logic
+    def clear_all_reminders(self):
+        global WATCHLIST
+        WATCHLIST = []
+        save_watchlist()
+        self.session.open(MessageBox, "All reminders cleared!", type=MessageBox.TYPE_INFO, timeout=2)
+        self.rebuild_visual_list()
+
+    # OK BUTTON LOGIC (Fixed)
     def ok_pressed(self):
         cur = self["event_list"].getCurrent()
         if not cur: return
-        data = cur[0] # (cat, name, sat, evt, ref, start, dur)
+        data = cur[0] 
         
-        # Check existing
         existing = [x for x in WATCHLIST if x['ref'] == data[4] and x['start_time'] == data[5]]
-        
+        # FIX: Check if Future
+        is_future = data[5] > int(time.time())
+
         menu = [("Zap to Channel Now", "zap")]
         
         if existing:
-            menu.append(("Remove Reminder", "rem"))
-        else:
+            menu.append(("Remove Reminder", "remove_rem"))
+        elif is_future:
+            # ONLY SHOW IF FUTURE to prevent error
             menu.append(("Set Reminder / Auto-Tune", "rem"))
             
-        self.session.openWithCallback(lambda c: self.ok_menu_cb(c, data), ChoiceBox, title="Select Action", list=menu)
+        self.session.openWithCallback(lambda c: self.ok_menu_cb(c, data), ChoiceBox, title="Action Selection", list=menu)
 
     def ok_menu_cb(self, choice, data):
         if not choice: return
         action = choice[1]
         if action == "zap":
             self.session.nav.playService(eServiceReference(data[4]))
+        elif action == "remove_rem":
+            self.add_reminder() # Toggles OFF
         elif action == "rem":
-            self.add_reminder()
+            self.save_reminder(choice, data) # Directly to save if picked from OK menu? No, add_reminder logic
+            self.add_reminder() # Use add_reminder to open the sub-menu
 
     def add_reminder(self):
         cur = self["event_list"].getCurrent()
@@ -588,13 +600,6 @@ class WhatToWatchScreen(Screen):
         WATCHLIST.append(entry)
         save_watchlist()
         self.session.open(MessageBox, "Reminder Set!", type=MessageBox.TYPE_INFO, timeout=3)
-        self.rebuild_visual_list()
-
-    def clear_all_reminders(self):
-        global WATCHLIST
-        WATCHLIST = []
-        save_watchlist()
-        self.session.open(MessageBox, "All reminders cleared!", type=MessageBox.TYPE_INFO, timeout=2)
         self.rebuild_visual_list()
 
     def show_sort_menu(self):
