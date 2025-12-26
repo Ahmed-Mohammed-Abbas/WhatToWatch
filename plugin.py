@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.0 (Stable Update Fix)
+#  Version: 3.1 (Picon Support)
 #  Author: reali22
-#  Description: Crash-proof update function. 700x860 UI. Optimized Layout.
+#  Description: Loads Picons from /share/enigma2/Fury-FHD/piconProv
 # ============================================================================
 
 import os
@@ -33,11 +33,13 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.0"
+VERSION = "3.1"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
+# Custom Picon Path
+CUSTOM_PICON_PATH = "/share/enigma2/Fury-FHD/piconProv/" 
 PINNED_FILE = "/etc/enigma2/wtw_pinned.json"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
@@ -109,7 +111,17 @@ def load_png(path):
     if os.path.exists(path): return loadPNG(path)
     return None
 
-def get_genre_icon(nibble):
+# New Picon Loader Function
+def get_picon(ref_str, nibble):
+    # 1. Try to load specific channel Picon from Custom Path
+    # Convert ref "1:0:1:..." to "1_0_1_..."
+    picon_name = ref_str.replace(":", "_").rstrip("_") + ".png"
+    picon_path = os.path.join(CUSTOM_PICON_PATH, picon_name)
+    
+    if os.path.exists(picon_path):
+        return loadPNG(picon_path)
+        
+    # 2. Fallback to Category Icon if no Picon found
     icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x9: "science.png"}
     icon_name = icon_map.get(nibble, "default.png")
     return load_png(os.path.join(ICON_PATH, icon_name)) or load_png(os.path.join(ICON_PATH, "default.png"))
@@ -186,9 +198,11 @@ def abbreviate_category(cat_name):
     }
     return subs.get(cat_name, cat_name[:5])
 
-# --- List Builder (Layout v4.7) ---
+# --- List Builder (Layout v4.9) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
-    icon_pixmap = get_genre_icon(genre_nibble)
+    # CHANGED: Load Picon from Custom Path
+    icon_pixmap = get_picon(service_ref, genre_nibble)
+    
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
     is_pinned = service_ref in PINNED_CHANNELS
@@ -290,6 +304,7 @@ class WhatToWatchScreen(Screen):
         self.session = session
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         
+        # FONTS
         self["event_list"].l.setFont(0, gFont("Regular", 26)) 
         self["event_list"].l.setFont(1, gFont("Regular", 22)) 
         self["event_list"].l.setFont(2, gFont("Regular", 20)) 
@@ -540,4 +555,4 @@ class WhatToWatchScreen(Screen):
         if cur: self.session.nav.playService(eServiceReference(cur[0][4]))
 
 def main(session, **kwargs): session.open(WhatToWatchScreen)
-def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description="Programs Browser by reali22", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
+def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description="EPG Browser by reali22", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
