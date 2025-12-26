@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Sound & Top Notification)
+#  Version: 3.3 (Chronological & Visual Reminders)
 #  Author: reali22
-#  Description: Reminders with Sound (pop.mp3) & Top Screen Notifications.
+#  Description: Sorted by Time. Satellite Filter on Green. Bell icon for reminders.
 # ============================================================================
 
 import os
@@ -37,7 +37,7 @@ AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
-SOUND_FILE = os.path.join(PLUGIN_PATH, "pop.mp3") # Sound File
+SOUND_FILE = os.path.join(PLUGIN_PATH, "pop.mp3") 
 PINNED_FILE = "/etc/enigma2/wtw_pinned.json"
 WATCHLIST_FILE = "/etc/enigma2/wtw_watchlist.json"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
@@ -233,18 +233,15 @@ class WTWMonitor:
     def trigger_event(self, item):
         # 1. Play Sound
         if os.path.exists(SOUND_FILE):
-            # Using gst-launch-1.0 to play mp3 in background
             os.system(f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} > /dev/null 2>&1 &")
         
         msg = f"{item['evt']}\nOn: {item['name']}"
         
         if item['type'] == 'zap':
-            # Use Top Notification for Zap warning
             self.session.open(WTWNotification, message=msg + "\nAuto-Tuning...", timeout=5)
             try: self.session.nav.playService(eServiceReference(item['ref']))
             except: pass
         else:
-            # Use Top Notification for standard alert
             self.session.open(WTWNotification, message=msg, timeout=8)
 
 # --- List Builder ---
@@ -252,10 +249,19 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     icon_pixmap = get_picon_resized(service_ref, channel_name, genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
+    # Base Channel Name
     display_name = channel_name
     if sat_info: display_name = f"{channel_name} ({sat_info})"
-    name_color = 0xFFFF00 if service_ref in PINNED_CHANNELS else 0xFFFFFF
-    if service_ref in PINNED_CHANNELS: display_name = f"★ {display_name}"
+    
+    # Check for Pinned
+    is_pinned = service_ref in PINNED_CHANNELS
+    name_color = 0xFFFF00 if is_pinned else 0xFFFFFF
+    if is_pinned: display_name = f"★ {display_name}"
+
+    # Check for Reminder in Watchlist (Ref + Start Time Match)
+    is_reminder = any(w['ref'] == service_ref and w['start_time'] == start_time for w in WATCHLIST)
+    if is_reminder:
+        display_name = f"🔔 {display_name}"
 
     short_cat = category_name[:5]
     progress_str = ""
@@ -312,7 +318,7 @@ class WhatToWatchScreen(Screen):
         
         self["status_label"] = Label("Loading...")
         self["key_red"] = Label("Time: Now")
-        self["key_green"] = Label("Refresh")
+        self["key_green"] = Label("Satellite") # Changed from Refresh
         self["key_yellow"] = Label("Category")
         self["key_blue"] = Label("Options")
         self["info_bar"] = Label("Press EPG/INFO to Translate")
@@ -321,7 +327,7 @@ class WhatToWatchScreen(Screen):
             "ok": self.zap_channel,
             "cancel": self.close,
             "red": self.show_time_menu,
-            "green": self.start_full_rescan,
+            "green": self.show_sat_menu, # Replaced Start Rescan with Satellite Menu
             "yellow": self.cycle_category,
             "blue": self.show_options_menu,
             "menu": self.show_sort_menu,
@@ -402,7 +408,14 @@ class WhatToWatchScreen(Screen):
 
     def rebuild_visual_list(self):
         filtered = [x for x in self.full_list if (not self.current_filter or x["cat"] == self.current_filter) and (not self.current_sat_filter or x["sat"] == self.current_sat_filter)]
-        filtered.sort(key=lambda x: (0 if x["ref"] in PINNED_CHANNELS else 1, x["cat"] if self.sort_mode == 'category' else x["name"]))
+        
+        # CHANGED: SORT LOGIC (Pinned > Start Time > Name)
+        filtered.sort(key=lambda x: (
+            0 if x["ref"] in PINNED_CHANNELS else 1, 
+            x["start"],  # Chronological
+            x["name"]
+        ))
+        
         show_prog = (self.time_offset == 0)
         res_list = []
         for item in filtered:
@@ -435,7 +448,8 @@ class WhatToWatchScreen(Screen):
         if cur: self.session.open(MessageBox, translate_text(cur[0][3]), type=MessageBox.TYPE_INFO)
 
     def show_options_menu(self):
-        menu = [("Set Reminder / Auto-Tune", "rem"), ("Pin/Unpin Channel", "pin"), ("Show Watchlist", "watch"), ("Toggle Source", "src"), ("Sort", "sort"), ("Update", "upd")]
+        # Added Refresh manual option
+        menu = [("Set Reminder / Auto-Tune", "rem"), ("Pin/Unpin Channel", "pin"), ("Show Watchlist", "watch"), ("Toggle Source", "src"), ("Refresh List", "refresh"), ("Sort", "sort"), ("Update", "upd")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
 
     def menu_cb(self, choice):
@@ -449,6 +463,7 @@ class WhatToWatchScreen(Screen):
                 self.rebuild_visual_list()
         elif c == "watch": self.show_watchlist()
         elif c == "src": self.use_favorites = not self.use_favorites; self.start_full_rescan()
+        elif c == "refresh": self.start_full_rescan()
         elif c == "sort": self.show_sort_menu()
         elif c == "upd": self.check_updates()
 
@@ -471,6 +486,7 @@ class WhatToWatchScreen(Screen):
         WATCHLIST.append(entry)
         save_watchlist()
         self.session.open(MessageBox, "Reminder Set!", type=MessageBox.TYPE_INFO, timeout=3)
+        self.rebuild_visual_list() # Update list to show Bell icon
 
     def show_watchlist(self):
         text = "Your Watchlist:\n\n"
@@ -486,6 +502,16 @@ class WhatToWatchScreen(Screen):
 
     def sort_cb(self, c):
         if c: self.sort_mode = c[1]; self.rebuild_visual_list()
+
+    def show_sat_menu(self):
+        sats = sorted(list(set([x["sat"] for x in self.full_list if x["sat"]])))
+        menu = [("All", "all")] + [(s, s) for s in sats]
+        self.session.openWithCallback(lambda c: self.sat_cb(c), ChoiceBox, title="Select Satellite", list=menu)
+
+    def sat_cb(self, c):
+        if c: 
+            self.current_sat_filter = None if c[1] == "all" else c[1]
+            self.rebuild_visual_list()
 
     def check_updates(self):
         try:
