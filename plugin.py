@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.2 (Smart Picon Finder)
+#  Version: 3.3
 #  Author: reali22
-#  Description: Tries 3 methods to find picons (Ref, Base Ref, Name).
+#  Description: EPG plugin by reali22
 # ============================================================================
 
 import os
@@ -33,7 +33,7 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.2"
+VERSION = "3.3"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
@@ -44,13 +44,13 @@ UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWa
 
 # --- PICON SEARCH PATHS ---
 PICON_PATHS = [
-    "/share/enigma2/Fury-FHD/piconProv/",  # Your custom path
-    "/usr/share/enigma2/picon/",           # Standard flash
-    "/picon/",                             # Root
-    "/media/usb/picon/",                   # USB
-    "/media/hdd/picon/",                   # HDD
-    "/media/mmc/picon/",                   # SD Card
-    "/usr/share/enigma2/picon_50x30/"      # Mini picons
+    "/usr/share/enigma2/Fury-FHD/piconProv/",
+    "/usr/share/enigma2/picon/",
+    "/picon/",
+    "/media/usb/picon/",
+    "/media/hdd/picon/",
+    "/media/mmc/picon/",
+    "/usr/share/enigma2/picon_50x30/"
 ]
 
 # --- SMART CATEGORY DATABASE ---
@@ -120,24 +120,29 @@ def load_png(path):
     if os.path.exists(path): return loadPNG(path)
     return None
 
-# NEW SMART PICON FINDER (Method v5.1)
 def find_picon(service_ref, channel_name, genre_nibble):
-    # 1. Try EXACT Reference (1_0_1_...)
+    # Strategy: Match Ref -> Match Base Ref -> Match Name
+    
+    # 1. Clean Ref (1_0_1_...)
     ref_clean = service_ref.strip().replace(":", "_").rstrip("_")
-    png_names = [
+    
+    # 2. Name Clean (For fallback)
+    name_clean = channel_name.strip()
+    
+    candidates = [
         ref_clean + ".png",
-        ref_clean.replace("1_0_19", "1_0_1") + ".png", # HD fallback
-        channel_name.strip() + ".png"                  # Name fallback
+        ref_clean.replace("1_0_19", "1_0_1") + ".png", # HD variant
+        name_clean + ".png"
     ]
     
     for path in PICON_PATHS:
         if os.path.exists(path):
-            for name in png_names:
+            for name in candidates:
                 full_path = os.path.join(path, name)
                 if os.path.exists(full_path):
                     return loadPNG(full_path)
     
-    # 2. Fallback to Category Icon if no Picon found
+    # 3. Fallback Category Icon
     icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x9: "science.png"}
     icon_name = icon_map.get(genre_nibble, "default.png")
     return load_png(os.path.join(ICON_PATH, icon_name)) or load_png(os.path.join(ICON_PATH, "default.png"))
@@ -178,6 +183,7 @@ def clean_channel_name_fuzzy(name):
     return re.sub(r'[\W_]+', '', n)
 
 def get_sat_position(ref_str):
+    # Strategy: Parse namespace hex for position
     if ref_str.startswith("4097:") or ref_str.startswith("5001:"): return "IPTV"
     try:
         parts = ref_str.split(":")
@@ -208,15 +214,15 @@ def translate_text(text, target_lang='en'):
 
 def abbreviate_category(cat_name):
     subs = {
-        "Documentary": "Doc.", "Religious": "Relig.", "Sports": "Sport",
+        "Documentary": "Doc.", "Religious": "Rel.", "Sports": "Sport",
         "Movies": "Movie", "Entertainment": "Ent.", "General": "Gen.",
         "Kids": "Kid", "Music": "Music", "News": "News"
     }
     return subs.get(cat_name, cat_name[:5])
 
-# --- List Builder (v5.1 Smart Picon) ---
+# --- List Builder (Picon + Optimized Layout) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
-    # Pass Name for Fallback search
+    # Load Picon using Smart Search
     icon_pixmap = find_picon(service_ref, channel_name, genre_nibble)
     
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
@@ -247,14 +253,19 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             elif percent > 10: progress_color = 0x00FF00
     
     # --- LAYOUT (Total Width 700px) ---
+    # Col 1: Time (60px) -> x=10
+    # Col 2: Picon (50px) -> x=70
+    # Col 3: Text (400px) -> x=125
+    # Col 4: Info (150px) -> x=540 (Ends at 690)
+
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
-        MultiContentEntryText(pos=(15, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
-        MultiContentEntryPixmapAlphaTest(pos=(80, 12), size=(45, 45), png=icon_pixmap),
-        MultiContentEntryText(pos=(135, 5), size=(390, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
-        MultiContentEntryText(pos=(135, 30), size=(390, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
-        MultiContentEntryText(pos=(530, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
-        MultiContentEntryText(pos=(530, 30), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
+        MultiContentEntryText(pos=(10, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
+        MultiContentEntryPixmapAlphaTest(pos=(70, 12), size=(50, 45), png=icon_pixmap),
+        MultiContentEntryText(pos=(125, 5), size=(400, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
+        MultiContentEntryText(pos=(125, 30), size=(400, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
+        MultiContentEntryText(pos=(540, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
+        MultiContentEntryText(pos=(540, 30), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
     ]
     return res
 
