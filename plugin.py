@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Watchlist via Green Button)
+#  Version: 3.3 (OK Button Context Menu)
 #  Author: reali22
-#  Description: Watchlist moved to Satellite Filter (Green Button).
+#  Description: OK Button opens menu (Zap + Reminder Options). Watchlist on Green.
 # ============================================================================
 
 import os
@@ -365,7 +365,7 @@ class WhatToWatchScreen(Screen):
         self["info_bar"] = Label("Press EPG/INFO to Translate")
 
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions", "InfoActions"], {
-            "ok": self.zap_channel,
+            "ok": self.ok_pressed, # NEW: OK calls context menu
             "ok_long": self.add_reminder,
             "cancel": self.close,
             "red": self.toggle_time,
@@ -449,19 +449,15 @@ class WhatToWatchScreen(Screen):
         if self.processed_count % 50 == 0: self.rebuild_visual_list()
 
     def rebuild_visual_list(self):
-        # NEW: Watchlist View Logic via Green Button
         if self.current_sat_filter == "watchlist":
-            # Build list dynamically from WATCHLIST
             filtered = []
             for w in WATCHLIST:
                 filtered.append({
                     "cat": "Watch", "name": w['name'], "sat": "", "evt": w['evt'],
                     "ref": w['ref'], "nib": 0, "start": w['start_time'], "dur": 0
                 })
-            # Sort Watchlist by time (Soonest first)
             filtered.sort(key=lambda x: x["start"])
         else:
-            # Standard Filter Logic
             filtered = [x for x in self.full_list if (not self.current_filter or x["cat"] == self.current_filter) and (not self.current_sat_filter or x["sat"] == self.current_sat_filter)]
             filtered.sort(key=lambda x: (
                 0 if x["ref"] in PINNED_CHANNELS else 1, 
@@ -483,6 +479,7 @@ class WhatToWatchScreen(Screen):
             if self.current_filter: filter_info.append(self.current_filter)
             if self.current_sat_filter: filter_info.append(self.current_sat_filter)
             if self.time_offset > 0: filter_info.append(f"+{self.time_offset//3600}h")
+            
             if filter_info:
                 status_text = f"Filter: {', '.join(filter_info)} | Channels: {len(filtered)}"
             else:
@@ -545,6 +542,44 @@ class WhatToWatchScreen(Screen):
         self.session.open(MessageBox, "All reminders cleared!", type=MessageBox.TYPE_INFO, timeout=2)
         self.rebuild_visual_list()
 
+    # NEW: OK Button Context Menu
+    def ok_pressed(self):
+        cur = self["event_list"].getCurrent()
+        if not cur: return
+        data = cur[0] # (cat, name, sat, evt, ref, start, dur)
+        
+        # Check if reminder exists
+        existing = [x for x in WATCHLIST if x['ref'] == data[4] and x['start_time'] == data[5]]
+        
+        # Build Context Menu
+        menu = [("Zap to Channel Now", "zap_now")]
+        
+        if existing:
+            menu.append(("Remove Reminder", "remove_rem"))
+        else:
+            if data[5] > int(time.time()):
+                menu.extend([
+                    ("Notification (At Start)", ("notify", 0)),
+                    ("Notification (5 min before)", ("notify", 300)),
+                    ("Notification (10 min before)", ("notify", 600)),
+                    ("Auto-Tune (Zap at Start)", ("zap", 0)),
+                    ("Weekly Notification", ("notify_week", 0))
+                ])
+        
+        self.session.openWithCallback(lambda c: self.ok_menu_cb(c, data), ChoiceBox, title="Action Selection", list=menu)
+
+    def ok_menu_cb(self, choice, data):
+        if not choice: return
+        action = choice[1]
+        
+        if action == "zap_now":
+            self.session.nav.playService(eServiceReference(data[4]))
+        elif action == "remove_rem":
+            self.add_reminder() # Toggles it OFF
+        else:
+            # It's a tuple for reminder settings
+            self.save_reminder(choice, data)
+
     def add_reminder(self):
         cur = self["event_list"].getCurrent()
         if not cur: return
@@ -584,9 +619,8 @@ class WhatToWatchScreen(Screen):
 
     def show_sat_menu(self):
         sats = sorted(list(set([x["sat"] for x in self.full_list if x["sat"]])))
-        # NEW: Watchlist option in Green Button Menu
         menu = [("All", "all"), ("★ MY WATCHLIST", "watchlist")] + [(s, s) for s in sats]
-        self.session.openWithCallback(self.sat_cb, ChoiceBox, title="Select Satellite", list=menu)
+        self.session.openWithCallback(lambda c: self.sat_cb(c), ChoiceBox, title="Select Satellite", list=menu)
 
     def sat_cb(self, c):
         if c: 
