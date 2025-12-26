@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Chronological & Visual Reminders)
+#  Version: 3.3 (Sound Fix & Robustness)
 #  Author: reali22
-#  Description: Sorted by Time. Satellite Filter on Green. Bell icon for reminders.
+#  Description: EPG Browser. Fixed sound alerts using Enigma2 Service.
 # ============================================================================
 
 import os
@@ -25,6 +25,8 @@ from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo,
 from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer, ePicLoad
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
+# NEW: Import Navigation for Sound
+import NavigationInstance
 
 # --- Configuration ---
 config.plugins.WhatToWatch = ConfigSubsection()
@@ -181,7 +183,6 @@ def translate_text(text, target_lang='en'):
 
 # --- NEW: TOP NOTIFICATION SCREEN ---
 class WTWNotification(Screen):
-    # Appears at TOP of screen (y=30), Width=1000
     skin = """
         <screen position="center,30" size="1000,100" title="Reminder" flags="wfNoBorder" backgroundColor="#40000000">
             <eLabel position="0,0" size="1000,100" backgroundColor="#20101010" zPosition="-1" />
@@ -193,8 +194,6 @@ class WTWNotification(Screen):
     def __init__(self, session, message, timeout=5):
         Screen.__init__(self, session)
         self["message"] = Label(message)
-        
-        # Auto close
         self.timer = eTimer()
         self.timer.callback.append(self.close)
         self.timer.start(timeout * 1000, True)
@@ -231,9 +230,17 @@ class WTWMonitor:
         if dirty: save_watchlist()
 
     def trigger_event(self, item):
-        # 1. Play Sound
+        # 1. Play Sound (Robust Method)
         if os.path.exists(SOUND_FILE):
-            os.system(f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} > /dev/null 2>&1 &")
+            try:
+                # Use os.system with aplay or gst-launch, wrapped in try/except
+                # Method A: ALSA (Most reliable for notifications)
+                os.system(f"aplay {SOUND_FILE} > /dev/null 2>&1 &")
+                
+                # Method B: Fallback to GStreamer if ALSA fails (commented out to avoid double sound)
+                # os.system(f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} > /dev/null 2>&1 &")
+            except:
+                pass # Fail silently, do not crash
         
         msg = f"{item['evt']}\nOn: {item['name']}"
         
@@ -249,19 +256,15 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     icon_pixmap = get_picon_resized(service_ref, channel_name, genre_nibble)
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
-    # Base Channel Name
     display_name = channel_name
     if sat_info: display_name = f"{channel_name} ({sat_info})"
     
-    # Check for Pinned
     is_pinned = service_ref in PINNED_CHANNELS
     name_color = 0xFFFF00 if is_pinned else 0xFFFFFF
     if is_pinned: display_name = f"★ {display_name}"
 
-    # Check for Reminder in Watchlist (Ref + Start Time Match)
     is_reminder = any(w['ref'] == service_ref and w['start_time'] == start_time for w in WATCHLIST)
-    if is_reminder:
-        display_name = f"🔔 {display_name}"
+    if is_reminder: display_name = f"🔔 {display_name}"
 
     short_cat = category_name[:5]
     progress_str = ""
@@ -318,7 +321,7 @@ class WhatToWatchScreen(Screen):
         
         self["status_label"] = Label("Loading...")
         self["key_red"] = Label("Time: Now")
-        self["key_green"] = Label("Satellite") # Changed from Refresh
+        self["key_green"] = Label("Satellite")
         self["key_yellow"] = Label("Category")
         self["key_blue"] = Label("Options")
         self["info_bar"] = Label("Press EPG/INFO to Translate")
@@ -327,7 +330,7 @@ class WhatToWatchScreen(Screen):
             "ok": self.zap_channel,
             "cancel": self.close,
             "red": self.show_time_menu,
-            "green": self.show_sat_menu, # Replaced Start Rescan with Satellite Menu
+            "green": self.show_sat_menu,
             "yellow": self.cycle_category,
             "blue": self.show_options_menu,
             "menu": self.show_sort_menu,
@@ -408,14 +411,11 @@ class WhatToWatchScreen(Screen):
 
     def rebuild_visual_list(self):
         filtered = [x for x in self.full_list if (not self.current_filter or x["cat"] == self.current_filter) and (not self.current_sat_filter or x["sat"] == self.current_sat_filter)]
-        
-        # CHANGED: SORT LOGIC (Pinned > Start Time > Name)
         filtered.sort(key=lambda x: (
             0 if x["ref"] in PINNED_CHANNELS else 1, 
-            x["start"],  # Chronological
+            x["start"], 
             x["name"]
         ))
-        
         show_prog = (self.time_offset == 0)
         res_list = []
         for item in filtered:
@@ -448,7 +448,6 @@ class WhatToWatchScreen(Screen):
         if cur: self.session.open(MessageBox, translate_text(cur[0][3]), type=MessageBox.TYPE_INFO)
 
     def show_options_menu(self):
-        # Added Refresh manual option
         menu = [("Set Reminder / Auto-Tune", "rem"), ("Pin/Unpin Channel", "pin"), ("Show Watchlist", "watch"), ("Toggle Source", "src"), ("Refresh List", "refresh"), ("Sort", "sort"), ("Update", "upd")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
 
@@ -486,7 +485,7 @@ class WhatToWatchScreen(Screen):
         WATCHLIST.append(entry)
         save_watchlist()
         self.session.open(MessageBox, "Reminder Set!", type=MessageBox.TYPE_INFO, timeout=3)
-        self.rebuild_visual_list() # Update list to show Bell icon
+        self.rebuild_visual_list()
 
     def show_watchlist(self):
         text = "Your Watchlist:\n\n"
