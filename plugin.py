@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Time Travel & Smart Reminders)
+#  Version: 3.3 (Sound & Top Notification)
 #  Author: reali22
-#  Description: Added Time Filters (+1h, +2h...) and Smart Reminder checks.
+#  Description: Reminders with Sound (pop.mp3) & Top Screen Notifications.
 # ============================================================================
 
 import os
@@ -37,6 +37,7 @@ AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
+SOUND_FILE = os.path.join(PLUGIN_PATH, "pop.mp3") # Sound File
 PINNED_FILE = "/etc/enigma2/wtw_pinned.json"
 WATCHLIST_FILE = "/etc/enigma2/wtw_watchlist.json"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
@@ -178,6 +179,26 @@ def translate_text(text, target_lang='en'):
     except: pass
     return text
 
+# --- NEW: TOP NOTIFICATION SCREEN ---
+class WTWNotification(Screen):
+    # Appears at TOP of screen (y=30), Width=1000
+    skin = """
+        <screen position="center,30" size="1000,100" title="Reminder" flags="wfNoBorder" backgroundColor="#40000000">
+            <eLabel position="0,0" size="1000,100" backgroundColor="#20101010" zPosition="-1" />
+            <eLabel text="!" position="20,20" size="60,60" font="Regular;48" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#20101010" transparent="1" />
+            <widget name="message" position="100,10" size="880,80" font="Regular;28" valign="center" halign="left" foregroundColor="#ffffff" backgroundColor="#20101010" transparent="1" />
+        </screen>
+    """
+    
+    def __init__(self, session, message, timeout=5):
+        Screen.__init__(self, session)
+        self["message"] = Label(message)
+        
+        # Auto close
+        self.timer = eTimer()
+        self.timer.callback.append(self.close)
+        self.timer.start(timeout * 1000, True)
+
 # --- BACKGROUND MONITOR ---
 class WTWMonitor:
     def __init__(self, session):
@@ -210,13 +231,21 @@ class WTWMonitor:
         if dirty: save_watchlist()
 
     def trigger_event(self, item):
-        msg = f"[WhatToWatch] Reminder!\n\n{item['evt']}\nOn: {item['name']}"
+        # 1. Play Sound
+        if os.path.exists(SOUND_FILE):
+            # Using gst-launch-1.0 to play mp3 in background
+            os.system(f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} > /dev/null 2>&1 &")
+        
+        msg = f"{item['evt']}\nOn: {item['name']}"
+        
         if item['type'] == 'zap':
-            self.session.open(MessageBox, msg + "\n\nZapping now...", type=MessageBox.TYPE_INFO, timeout=5)
+            # Use Top Notification for Zap warning
+            self.session.open(WTWNotification, message=msg + "\nAuto-Tuning...", timeout=5)
             try: self.session.nav.playService(eServiceReference(item['ref']))
             except: pass
         else:
-            self.session.open(MessageBox, msg, type=MessageBox.TYPE_INFO, timeout=10)
+            # Use Top Notification for standard alert
+            self.session.open(WTWNotification, message=msg, timeout=8)
 
 # --- List Builder ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
@@ -232,7 +261,6 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     progress_str = ""
     progress_color = 0xFFFFFF
     
-    # Only calculate progress if show_progress is True (Start time is Now)
     if show_progress and duration > 0:
         current_time = int(time.time())
         if start_time <= current_time < (start_time + duration):
@@ -292,7 +320,7 @@ class WhatToWatchScreen(Screen):
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions", "InfoActions"], {
             "ok": self.zap_channel,
             "cancel": self.close,
-            "red": self.show_time_menu,  # NEW: Time Filter
+            "red": self.show_time_menu,
             "green": self.start_full_rescan,
             "yellow": self.cycle_category,
             "blue": self.show_options_menu,
@@ -307,8 +335,7 @@ class WhatToWatchScreen(Screen):
         self.current_sat_filter = None
         self.use_favorites = False
         self.sort_mode = 'category'
-        self.time_offset = 0  # NEW: Time Offset
-        
+        self.time_offset = 0
         self.process_timer = eTimer()
         self.process_timer.callback.append(self.process_batch)
         self.onLayoutFinish.append(self.start_full_rescan)
@@ -320,7 +347,6 @@ class WhatToWatchScreen(Screen):
         self.processed_count = 0
         self["event_list"].setList([])
         
-        # Display current time filter in status
         time_text = "Now" if self.time_offset == 0 else f"+{self.time_offset//3600}h"
         self["status_label"].setText(f"Loading channels ({time_text})...")
         
@@ -350,8 +376,6 @@ class WhatToWatchScreen(Screen):
 
         BATCH_SIZE = 10 
         epg_cache = eEPGCache.getInstance()
-        
-        # Calculate Query Time (Now + Offset)
         query_time = int(time.time()) + self.time_offset
 
         for _ in range(BATCH_SIZE):
@@ -379,24 +403,14 @@ class WhatToWatchScreen(Screen):
     def rebuild_visual_list(self):
         filtered = [x for x in self.full_list if (not self.current_filter or x["cat"] == self.current_filter) and (not self.current_sat_filter or x["sat"] == self.current_sat_filter)]
         filtered.sort(key=lambda x: (0 if x["ref"] in PINNED_CHANNELS else 1, x["cat"] if self.sort_mode == 'category' else x["name"]))
-
-        # Hide progress bar if looking at future events
         show_prog = (self.time_offset == 0)
-
         res_list = []
         for item in filtered:
             res_list.append(build_list_entry(item["cat"], item["name"], item["sat"], item["evt"], item["ref"], item["nib"], item["start"], item["dur"], show_prog))
         self["event_list"].setList(res_list)
 
     def show_time_menu(self):
-        menu = [
-            ("Time: Now", 0),
-            ("Time: +1 Hour", 3600),
-            ("Time: +2 Hours", 7200),
-            ("Time: +4 Hours", 14400),
-            ("Time: +6 Hours", 21600),
-            ("Time: +8 Hours", 28800)
-        ]
+        menu = [("Time: Now", 0), ("Time: +1 Hour", 3600), ("Time: +2 Hours", 7200), ("Time: +4 Hours", 14400), ("Time: +6 Hours", 21600), ("Time: +8 Hours", 28800)]
         self.session.openWithCallback(self.time_menu_cb, ChoiceBox, title="Select Time Filter", list=menu)
 
     def time_menu_cb(self, choice):
@@ -441,20 +455,11 @@ class WhatToWatchScreen(Screen):
     def add_reminder(self):
         cur = self["event_list"].getCurrent()
         if not cur: return
-        data = cur[0] # (cat, name, sat, evt, ref, start, dur)
-        
-        # NEW: Check if program already started
+        data = cur[0] 
         if data[5] <= int(time.time()):
             self.session.open(MessageBox, "Program already started! Cannot set reminder.", type=MessageBox.TYPE_ERROR)
             return
-
-        menu = [
-            ("Notification (At Start)", ("notify", 0)),
-            ("Notification (5 min before)", ("notify", 300)),
-            ("Notification (10 min before)", ("notify", 600)),
-            ("Auto-Tune (Zap at Start)", ("zap", 0)),
-            ("Weekly Notification", ("notify_week", 0))
-        ]
+        menu = [("Notification (At Start)", ("notify", 0)), ("Notification (5 min before)", ("notify", 300)), ("Notification (10 min before)", ("notify", 600)), ("Auto-Tune (Zap at Start)", ("zap", 0)), ("Weekly Notification", ("notify_week", 0))]
         self.session.openWithCallback(lambda c: self.save_reminder(c, data), ChoiceBox, title="Set Reminder", list=menu)
 
     def save_reminder(self, choice, data):
@@ -462,14 +467,7 @@ class WhatToWatchScreen(Screen):
         type_code, offset = choice[1]
         repeat = (type_code == "notify_week")
         if repeat: type_code = "notify"
-            
-        notify_at = data[5] - offset
-        
-        entry = {
-            "ref": data[4], "name": data[1], "evt": data[3],
-            "start_time": data[5], "notify_at": notify_at,
-            "type": type_code, "repeat": repeat
-        }
+        entry = {"ref": data[4], "name": data[1], "evt": data[3], "start_time": data[5], "notify_at": data[5] - offset, "type": type_code, "repeat": repeat}
         WATCHLIST.append(entry)
         save_watchlist()
         self.session.open(MessageBox, "Reminder Set!", type=MessageBox.TYPE_INFO, timeout=3)
