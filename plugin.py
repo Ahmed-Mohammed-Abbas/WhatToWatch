@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Smart Picon Finder)
+#  Version: 3.3
 #  Author: reali22
-#  Description: Tries 3 methods to find picons (Ref, Base Ref, Name).
+#  Description: EPG plugin by reali22
 # ============================================================================
 
 import os
@@ -23,7 +23,7 @@ from Components.MenuList import MenuList
 from Components.MultiContent import MultiContentEntryText, MultiContentEntryPixmapAlphaTest
 from Components.ConfigList import ConfigListScreen
 from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo, getConfigListEntry
-from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer
+from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer, ePicLoad, eSize
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
 
@@ -43,15 +43,15 @@ UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToW
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
 # --- PICON SEARCH PATHS ---
+# Added /omb/picon/ as requested
 PICON_PATHS = [
-    "/share/enigma2/Fury-FHD/piconProv/",  # Your custom path
-    "/usr/share/enigma2/Fury-FHD/piconProv/",  # Your custom path
+    "/omb/picon/",                         # Priority 1: User Request
+    "/share/enigma2/Fury-FHD/piconProv/",  # Priority 2: Custom Skin
     "/usr/share/enigma2/picon/",           # Standard flash
     "/picon/",                             # Root
-    "/omb/picon/",                   # USB
+    "/media/usb/picon/",                   # USB
     "/media/hdd/picon/",                   # HDD
-    "/media/mmc/picon/",                   # SD Card
-    "/usr/share/enigma2/picon_50x30/"      # Mini picons
+    "/media/mmc/picon/"                    # SD Card
 ]
 
 # --- SMART CATEGORY DATABASE ---
@@ -121,27 +121,59 @@ def load_png(path):
     if os.path.exists(path): return loadPNG(path)
     return None
 
-# NEW SMART PICON FINDER (Method v5.1)
-def find_picon(service_ref, channel_name, genre_nibble):
-    # 1. Try EXACT Reference (1_0_1_...)
+# --- RESIZING PICON LOADER ---
+# Cache to store resized pixmaps so we don't resize the same image 100 times
+PICON_CACHE = {}
+
+def get_picon_resized(service_ref, channel_name, genre_nibble):
+    # 1. Generate Cache Key
     ref_clean = service_ref.strip().replace(":", "_").rstrip("_")
-    png_names = [
+    
+    if ref_clean in PICON_CACHE:
+        return PICON_CACHE[ref_clean]
+
+    # 2. Find the file
+    found_path = None
+    
+    # Try exact ref, HD ref, then name
+    candidates = [
         ref_clean + ".png",
-        ref_clean.replace("1_0_19", "1_0_1") + ".png", # HD fallback
-        channel_name.strip() + ".png"                  # Name fallback
+        ref_clean.replace("1_0_19", "1_0_1") + ".png",
+        channel_name.strip() + ".png"
     ]
     
     for path in PICON_PATHS:
         if os.path.exists(path):
-            for name in png_names:
+            for name in candidates:
                 full_path = os.path.join(path, name)
                 if os.path.exists(full_path):
-                    return loadPNG(full_path)
+                    found_path = full_path
+                    break
+        if found_path: break
     
-    # 2. Fallback to Category Icon if no Picon found
+    # 3. Load & Resize (if found)
+    if found_path:
+        try:
+            # Load and Resize to 50x30 using ePicLoad
+            sc = ePicLoad()
+            sc.setPara((50, 30, 1, 1, False, 1, "#00000000")) # Width=50, Height=30, Keep Aspect=1
+            if sc.startDecode(found_path, 0, 0, False) == 0:
+                # Wait/Check (Usually instant for small files, but we fetch result)
+                ptr = sc.getData()
+                if ptr:
+                    PICON_CACHE[ref_clean] = ptr
+                    return ptr
+        except:
+            pass # Fail silently back to default
+
+    # 4. Fallback Category Icon (Pre-loaded, no resize needed usually small)
     icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x9: "science.png"}
     icon_name = icon_map.get(genre_nibble, "default.png")
-    return load_png(os.path.join(ICON_PATH, icon_name)) or load_png(os.path.join(ICON_PATH, "default.png"))
+    
+    # Load fallback
+    fallback = loadPNG(os.path.join(ICON_PATH, icon_name)) or loadPNG(os.path.join(ICON_PATH, "default.png"))
+    PICON_CACHE[ref_clean] = fallback
+    return fallback
 
 def is_adult(text):
     if not text: return False
@@ -209,16 +241,16 @@ def translate_text(text, target_lang='en'):
 
 def abbreviate_category(cat_name):
     subs = {
-        "Documentary": "Doc.", "Religious": "Relig.", "Sports": "Sport",
+        "Documentary": "Doc.", "Religious": "Rel.", "Sports": "Sport",
         "Movies": "Movie", "Entertainment": "Ent.", "General": "Gen.",
         "Kids": "Kid", "Music": "Music", "News": "News"
     }
     return subs.get(cat_name, cat_name[:5])
 
-# --- List Builder (v5.1 Smart Picon) ---
+# --- List Builder (Resized Picon Layout) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
-    # Pass Name for Fallback search
-    icon_pixmap = find_picon(service_ref, channel_name, genre_nibble)
+    # Load Resized Picon
+    icon_pixmap = get_picon_resized(service_ref, channel_name, genre_nibble)
     
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
@@ -248,10 +280,16 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             elif percent > 10: progress_color = 0x00FF00
     
     # --- LAYOUT (Total Width 700px) ---
+    # Safe Margins + Picon Space
+    # 1. Time: x=15, w=60
+    # 2. Picon: x=80, w=50 (Resized to fit)
+    # 3. Channel: x=135, w=390
+    # 4. Info: x=530, w=110
+
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         MultiContentEntryText(pos=(15, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
-        MultiContentEntryPixmapAlphaTest(pos=(80, 12), size=(45, 45), png=icon_pixmap),
+        MultiContentEntryPixmapAlphaTest(pos=(80, 15), size=(50, 30), png=icon_pixmap), # 50x30 box for resized picon
         MultiContentEntryText(pos=(135, 5), size=(390, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
         MultiContentEntryText(pos=(135, 30), size=(390, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
         MultiContentEntryText(pos=(530, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
@@ -572,4 +610,4 @@ class WhatToWatchScreen(Screen):
         if cur: self.session.nav.playService(eServiceReference(cur[0][4]))
 
 def main(session, **kwargs): session.open(WhatToWatchScreen)
-def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description="EPG Browser by reali22", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
+def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description=f"{AUTHOR}", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
