@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Sound Fix & Robustness)
+#  Version: 3.3 (Channel Counter)
 #  Author: reali22
-#  Description: EPG Browser. Fixed sound alerts using Enigma2 Service.
+#  Description: Added Channel Count to top status bar.
 # ============================================================================
 
 import os
@@ -25,7 +25,6 @@ from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo,
 from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer, ePicLoad
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
-# NEW: Import Navigation for Sound
 import NavigationInstance
 
 # --- Configuration ---
@@ -181,7 +180,7 @@ def translate_text(text, target_lang='en'):
     except: pass
     return text
 
-# --- NEW: TOP NOTIFICATION SCREEN ---
+# --- TOP NOTIFICATION SCREEN ---
 class WTWNotification(Screen):
     skin = """
         <screen position="center,30" size="1000,100" title="Reminder" flags="wfNoBorder" backgroundColor="#40000000">
@@ -190,7 +189,6 @@ class WTWNotification(Screen):
             <widget name="message" position="100,10" size="880,80" font="Regular;28" valign="center" halign="left" foregroundColor="#ffffff" backgroundColor="#20101010" transparent="1" />
         </screen>
     """
-    
     def __init__(self, session, message, timeout=5):
         Screen.__init__(self, session)
         self["message"] = Label(message)
@@ -230,17 +228,11 @@ class WTWMonitor:
         if dirty: save_watchlist()
 
     def trigger_event(self, item):
-        # 1. Play Sound (Robust Method)
         if os.path.exists(SOUND_FILE):
             try:
-                # Use os.system with aplay or gst-launch, wrapped in try/except
-                # Method A: ALSA (Most reliable for notifications)
-                os.system(f"aplay {SOUND_FILE} > /dev/null 2>&1 &")
-                
-                # Method B: Fallback to GStreamer if ALSA fails (commented out to avoid double sound)
-                # os.system(f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} > /dev/null 2>&1 &")
-            except:
-                pass # Fail silently, do not crash
+                cmd = f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} volume=0.4 > /dev/null 2>&1 &"
+                os.system(cmd)
+            except: pass
         
         msg = f"{item['evt']}\nOn: {item['name']}"
         
@@ -285,8 +277,12 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
         MultiContentEntryPixmapAlphaTest(pos=(80, 15), size=(50, 30), png=icon_pixmap),
         MultiContentEntryText(pos=(135, 5), size=(390, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
         MultiContentEntryText(pos=(135, 30), size=(390, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
-        MultiContentEntryText(pos=(530, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
-        MultiContentEntryText(pos=(530, 30), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
+        
+        # Category (Top Right)
+        MultiContentEntryText(pos=(530, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
+        
+        # Progress (Bottom Right)
+        MultiContentEntryText(pos=(530, 30), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
     ]
     return res
 
@@ -411,16 +407,32 @@ class WhatToWatchScreen(Screen):
 
     def rebuild_visual_list(self):
         filtered = [x for x in self.full_list if (not self.current_filter or x["cat"] == self.current_filter) and (not self.current_sat_filter or x["sat"] == self.current_sat_filter)]
+        
+        # Sort: Pinned > Start > Name
         filtered.sort(key=lambda x: (
             0 if x["ref"] in PINNED_CHANNELS else 1, 
             x["start"], 
             x["name"]
         ))
+        
         show_prog = (self.time_offset == 0)
+        
         res_list = []
         for item in filtered:
             res_list.append(build_list_entry(item["cat"], item["name"], item["sat"], item["evt"], item["ref"], item["nib"], item["start"], item["dur"], show_prog))
         self["event_list"].setList(res_list)
+        
+        # Update Channel Count
+        filter_info = []
+        if self.current_filter: filter_info.append(self.current_filter)
+        if self.current_sat_filter: filter_info.append(self.current_sat_filter)
+        if self.time_offset > 0: filter_info.append(f"+{self.time_offset//3600}h")
+        
+        if filter_info:
+            status_text = f"Filter: {', '.join(filter_info)} | Channels: {len(filtered)}"
+        else:
+            status_text = f"All Channels | Total: {len(filtered)}"
+        self["status_label"].setText(status_text)
 
     def show_time_menu(self):
         menu = [("Time: Now", 0), ("Time: +1 Hour", 3600), ("Time: +2 Hours", 7200), ("Time: +4 Hours", 14400), ("Time: +6 Hours", 21600), ("Time: +8 Hours", 28800)]
