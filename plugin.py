@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (OK Button Context Menu)
+#  Version: 3.3 (Refined OK Menu)
 #  Author: reali22
-#  Description: OK Button opens menu (Zap + Reminder Options). Watchlist on Green.
+#  Description: OK Button shows Zap + Reminder option.
 # ============================================================================
 
 import os
@@ -365,7 +365,7 @@ class WhatToWatchScreen(Screen):
         self["info_bar"] = Label("Press EPG/INFO to Translate")
 
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions", "InfoActions"], {
-            "ok": self.ok_pressed, # NEW: OK calls context menu
+            "ok": self.ok_pressed, # UPDATED
             "ok_long": self.add_reminder,
             "cancel": self.close,
             "red": self.toggle_time,
@@ -471,7 +471,6 @@ class WhatToWatchScreen(Screen):
             res_list.append(build_list_entry(item["cat"], item["name"], item["sat"], item["evt"], item["ref"], item["nib"], item["start"], item["dur"], show_prog))
         self["event_list"].setList(res_list)
         
-        # Update Status Bar
         if self.current_sat_filter == "watchlist":
             status_text = f"Filter: ★ MY WATCHLIST | Reminders: {len(filtered)}"
         else:
@@ -479,7 +478,6 @@ class WhatToWatchScreen(Screen):
             if self.current_filter: filter_info.append(self.current_filter)
             if self.current_sat_filter: filter_info.append(self.current_sat_filter)
             if self.time_offset > 0: filter_info.append(f"+{self.time_offset//3600}h")
-            
             if filter_info:
                 status_text = f"Filter: {', '.join(filter_info)} | Channels: {len(filtered)}"
             else:
@@ -535,50 +533,31 @@ class WhatToWatchScreen(Screen):
         elif c == "upd": self.check_updates()
         elif c == "ai": self.session.open(WhatToWatchSetup)
 
-    def clear_all_reminders(self):
-        global WATCHLIST
-        WATCHLIST = []
-        save_watchlist()
-        self.session.open(MessageBox, "All reminders cleared!", type=MessageBox.TYPE_INFO, timeout=2)
-        self.rebuild_visual_list()
-
-    # NEW: OK Button Context Menu
+    # NEW: OK Button Logic
     def ok_pressed(self):
         cur = self["event_list"].getCurrent()
         if not cur: return
         data = cur[0] # (cat, name, sat, evt, ref, start, dur)
         
-        # Check if reminder exists
+        # Check existing
         existing = [x for x in WATCHLIST if x['ref'] == data[4] and x['start_time'] == data[5]]
         
-        # Build Context Menu
-        menu = [("Zap to Channel Now", "zap_now")]
+        menu = [("Zap to Channel Now", "zap")]
         
         if existing:
-            menu.append(("Remove Reminder", "remove_rem"))
+            menu.append(("Remove Reminder", "rem"))
         else:
-            if data[5] > int(time.time()):
-                menu.extend([
-                    ("Notification (At Start)", ("notify", 0)),
-                    ("Notification (5 min before)", ("notify", 300)),
-                    ("Notification (10 min before)", ("notify", 600)),
-                    ("Auto-Tune (Zap at Start)", ("zap", 0)),
-                    ("Weekly Notification", ("notify_week", 0))
-                ])
-        
-        self.session.openWithCallback(lambda c: self.ok_menu_cb(c, data), ChoiceBox, title="Action Selection", list=menu)
+            menu.append(("Set Reminder / Auto-Tune", "rem"))
+            
+        self.session.openWithCallback(lambda c: self.ok_menu_cb(c, data), ChoiceBox, title="Select Action", list=menu)
 
     def ok_menu_cb(self, choice, data):
         if not choice: return
         action = choice[1]
-        
-        if action == "zap_now":
+        if action == "zap":
             self.session.nav.playService(eServiceReference(data[4]))
-        elif action == "remove_rem":
-            self.add_reminder() # Toggles it OFF
-        else:
-            # It's a tuple for reminder settings
-            self.save_reminder(choice, data)
+        elif action == "rem":
+            self.add_reminder()
 
     def add_reminder(self):
         cur = self["event_list"].getCurrent()
@@ -609,6 +588,13 @@ class WhatToWatchScreen(Screen):
         WATCHLIST.append(entry)
         save_watchlist()
         self.session.open(MessageBox, "Reminder Set!", type=MessageBox.TYPE_INFO, timeout=3)
+        self.rebuild_visual_list()
+
+    def clear_all_reminders(self):
+        global WATCHLIST
+        WATCHLIST = []
+        save_watchlist()
+        self.session.open(MessageBox, "All reminders cleared!", type=MessageBox.TYPE_INFO, timeout=2)
         self.rebuild_visual_list()
 
     def show_sort_menu(self):
