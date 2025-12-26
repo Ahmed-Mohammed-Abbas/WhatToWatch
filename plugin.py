@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.1 (Fix & Stability)
+#  Version: 3.3 (Time Travel & Smart Reminders)
 #  Author: reali22
-#  Description: EPG plugin by reali22. Background Reminders & Auto-Tune.
+#  Description: Added Time Filters (+1h, +2h...) and Smart Reminder checks.
 # ============================================================================
 
 import os
@@ -32,7 +32,7 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.1"
+VERSION = "3.3"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
@@ -56,7 +56,7 @@ PICON_PATHS = [
 
 # --- CATEGORY DATABASE ---
 CATEGORIES = {
-    "Kids": (["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid"], ["cartoon", "animation", "anime", "sponge", "patrol", "mouse"]),
+    "Kids": (["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan"], ["cartoon", "animation", "anime", "sponge", "patrol", "mouse"]),
     "Sports": (["sport", "espn", "bein", "sky", "bt sport", "euro", "dazn", "ssc", "alkass", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport"], ["match", "cup", "league", "football", "soccer", "racing", "derby", "final", "premier"]),
     "News": (["news", "cnn", "bbc", "jazeera", "alarabiya", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw"], ["news", "journal", "report", "briefing", "update", "headline"]),
     "Documentary": (["doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte"], ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari"]),
@@ -166,8 +166,6 @@ def get_sat_position(ref_str):
     return ""
 
 def translate_text(text, target_lang='en'):
-    if not text or len(text) < 2: return "No description."
-    if any('\u0600' <= char <= '\u06FF' for char in text[:30]): return text
     try:
         encoded = quote(text)
         url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={encoded}"
@@ -186,19 +184,18 @@ class WTWMonitor:
         self.session = session
         self.timer = eTimer()
         self.timer.callback.append(self.check_reminders)
-        self.timer.start(60000, False) # Check every minute
+        self.timer.start(60000, False)
 
     def check_reminders(self):
         now = int(time.time())
         dirty = False
         to_remove = []
-        
         for item in WATCHLIST:
             target_time = item['notify_at']
             if now >= target_time and now < target_time + 120:
                 self.trigger_event(item)
                 if item.get('repeat', False):
-                    item['start_time'] += 604800 # +7 days
+                    item['start_time'] += 604800
                     item['notify_at'] += 604800
                     dirty = True
                 else:
@@ -206,22 +203,17 @@ class WTWMonitor:
             elif now > target_time + 3600:
                 if not item.get('repeat', False):
                     to_remove.append(item)
-
         for item in to_remove:
             if item in WATCHLIST:
                 WATCHLIST.remove(item)
                 dirty = True
-        
-        if dirty:
-            save_watchlist()
+        if dirty: save_watchlist()
 
     def trigger_event(self, item):
         msg = f"[WhatToWatch] Reminder!\n\n{item['evt']}\nOn: {item['name']}"
         if item['type'] == 'zap':
             self.session.open(MessageBox, msg + "\n\nZapping now...", type=MessageBox.TYPE_INFO, timeout=5)
-            try:
-                # Use session.nav instead of importing NavigationInstance
-                self.session.nav.playService(eServiceReference(item['ref']))
+            try: self.session.nav.playService(eServiceReference(item['ref']))
             except: pass
         else:
             self.session.open(MessageBox, msg, type=MessageBox.TYPE_INFO, timeout=10)
@@ -233,7 +225,6 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     
     display_name = channel_name
     if sat_info: display_name = f"{channel_name} ({sat_info})"
-    
     name_color = 0xFFFF00 if service_ref in PINNED_CHANNELS else 0xFFFFFF
     if service_ref in PINNED_CHANNELS: display_name = f"★ {display_name}"
 
@@ -241,6 +232,7 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     progress_str = ""
     progress_color = 0xFFFFFF
     
+    # Only calculate progress if show_progress is True (Start time is Now)
     if show_progress and duration > 0:
         current_time = int(time.time())
         if start_time <= current_time < (start_time + duration):
@@ -250,7 +242,6 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
 
-    # Layout: Time(15,60) | Picon(80,50) | Text(135,390) | Info(530,110)
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         MultiContentEntryText(pos=(15, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
@@ -292,7 +283,7 @@ class WhatToWatchScreen(Screen):
         self["event_list"].l.setItemHeight(80)
         
         self["status_label"] = Label("Loading...")
-        self["key_red"] = Label("Satellite")
+        self["key_red"] = Label("Time: Now")
         self["key_green"] = Label("Refresh")
         self["key_yellow"] = Label("Category")
         self["key_blue"] = Label("Options")
@@ -301,7 +292,7 @@ class WhatToWatchScreen(Screen):
         self["actions"] = ActionMap(["OkCancelActions", "ColorActions", "MenuActions", "EPGSelectActions", "InfoActions"], {
             "ok": self.zap_channel,
             "cancel": self.close,
-            "red": self.show_sat_menu,
+            "red": self.show_time_menu,  # NEW: Time Filter
             "green": self.start_full_rescan,
             "yellow": self.cycle_category,
             "blue": self.show_options_menu,
@@ -316,7 +307,8 @@ class WhatToWatchScreen(Screen):
         self.current_sat_filter = None
         self.use_favorites = False
         self.sort_mode = 'category'
-        self.lookup_time = int(time.time())
+        self.time_offset = 0  # NEW: Time Offset
+        
         self.process_timer = eTimer()
         self.process_timer.callback.append(self.process_batch)
         self.onLayoutFinish.append(self.start_full_rescan)
@@ -327,6 +319,10 @@ class WhatToWatchScreen(Screen):
         self.raw_services = []
         self.processed_count = 0
         self["event_list"].setList([])
+        
+        # Display current time filter in status
+        time_text = "Now" if self.time_offset == 0 else f"+{self.time_offset//3600}h"
+        self["status_label"].setText(f"Loading channels ({time_text})...")
         
         service_handler = eServiceCenter.getInstance()
         ref_str = '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "userbouquet.favourites.tv" ORDER BY bouquet' if self.use_favorites else '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "bouquets.tv" ORDER BY bouquet'
@@ -344,17 +340,19 @@ class WhatToWatchScreen(Screen):
                 if len(self.raw_services) > 2000: break
 
         self["status_label"].setText(f"Scanning {len(self.raw_services)} channels...")
-        self.lookup_time = int(time.time())
         self.process_timer.start(10, False)
 
     def process_batch(self):
         if not self.raw_services:
             self.process_timer.stop()
-            self["status_label"].setText(f"Done. {len(self.full_list)} events.")
+            self["status_label"].setText(f"Done. {len(self.full_list)} events found.")
             return
 
         BATCH_SIZE = 10 
         epg_cache = eEPGCache.getInstance()
+        
+        # Calculate Query Time (Now + Offset)
+        query_time = int(time.time()) + self.time_offset
 
         for _ in range(BATCH_SIZE):
             if not self.raw_services: break
@@ -362,7 +360,7 @@ class WhatToWatchScreen(Screen):
             if "::" in s_ref: continue
             
             try:
-                event = epg_cache.lookupEventTime(eServiceReference(s_ref), self.lookup_time)
+                event = epg_cache.lookupEventTime(eServiceReference(s_ref), query_time)
                 if not event: continue
                 event_name = event.getEventName()
                 category = classify_enhanced(s_name, event_name)
@@ -380,13 +378,32 @@ class WhatToWatchScreen(Screen):
 
     def rebuild_visual_list(self):
         filtered = [x for x in self.full_list if (not self.current_filter or x["cat"] == self.current_filter) and (not self.current_sat_filter or x["sat"] == self.current_sat_filter)]
-        
         filtered.sort(key=lambda x: (0 if x["ref"] in PINNED_CHANNELS else 1, x["cat"] if self.sort_mode == 'category' else x["name"]))
+
+        # Hide progress bar if looking at future events
+        show_prog = (self.time_offset == 0)
 
         res_list = []
         for item in filtered:
-            res_list.append(build_list_entry(item["cat"], item["name"], item["sat"], item["evt"], item["ref"], item["nib"], item["start"], item["dur"], True))
+            res_list.append(build_list_entry(item["cat"], item["name"], item["sat"], item["evt"], item["ref"], item["nib"], item["start"], item["dur"], show_prog))
         self["event_list"].setList(res_list)
+
+    def show_time_menu(self):
+        menu = [
+            ("Time: Now", 0),
+            ("Time: +1 Hour", 3600),
+            ("Time: +2 Hours", 7200),
+            ("Time: +4 Hours", 14400),
+            ("Time: +6 Hours", 21600),
+            ("Time: +8 Hours", 28800)
+        ]
+        self.session.openWithCallback(self.time_menu_cb, ChoiceBox, title="Select Time Filter", list=menu)
+
+    def time_menu_cb(self, choice):
+        if choice:
+            self.time_offset = choice[1]
+            self["key_red"].setText(choice[0])
+            self.start_full_rescan()
 
     def cycle_category(self):
         cats = sorted(list(set([x["cat"] for x in self.full_list])))
@@ -426,7 +443,11 @@ class WhatToWatchScreen(Screen):
         if not cur: return
         data = cur[0] # (cat, name, sat, evt, ref, start, dur)
         
-        # Options: (Type, Offset, Repeat)
+        # NEW: Check if program already started
+        if data[5] <= int(time.time()):
+            self.session.open(MessageBox, "Program already started! Cannot set reminder.", type=MessageBox.TYPE_ERROR)
+            return
+
         menu = [
             ("Notification (At Start)", ("notify", 0)),
             ("Notification (5 min before)", ("notify", 300)),
@@ -439,11 +460,8 @@ class WhatToWatchScreen(Screen):
     def save_reminder(self, choice, data):
         if not choice: return
         type_code, offset = choice[1]
-        
-        repeat = False
-        if type_code == "notify_week":
-            type_code = "notify"
-            repeat = True
+        repeat = (type_code == "notify_week")
+        if repeat: type_code = "notify"
             
         notify_at = data[5] - offset
         
@@ -470,16 +488,6 @@ class WhatToWatchScreen(Screen):
 
     def sort_cb(self, c):
         if c: self.sort_mode = c[1]; self.rebuild_visual_list()
-
-    def show_sat_menu(self):
-        sats = sorted(list(set([x["sat"] for x in self.full_list if x["sat"]])))
-        menu = [("All", "all")] + [(s, s) for s in sats]
-        self.session.openWithCallback(lambda c: self.sat_cb(c), ChoiceBox, title="Select Satellite", list=menu)
-
-    def sat_cb(self, c):
-        if c: 
-            self.current_sat_filter = None if c[1] == "all" else c[1]
-            self.rebuild_visual_list()
 
     def check_updates(self):
         try:
