@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Channel Counter)
+#  Version: 3.3 (Visual Highlight)
 #  Author: reali22
-#  Description: Added Channel Count to top status bar.
+#  Description: Channel name turns GREEN when a reminder/zap is set.
 # ============================================================================
 
 import os
@@ -230,7 +230,7 @@ class WTWMonitor:
     def trigger_event(self, item):
         if os.path.exists(SOUND_FILE):
             try:
-                cmd = f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} volume=0.4 > /dev/null 2>&1 &"
+                cmd = f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} volume=0.9 > /dev/null 2>&1 &"
                 os.system(cmd)
             except: pass
         
@@ -251,12 +251,25 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     display_name = channel_name
     if sat_info: display_name = f"{channel_name} ({sat_info})"
     
-    is_pinned = service_ref in PINNED_CHANNELS
-    name_color = 0xFFFF00 if is_pinned else 0xFFFFFF
-    if is_pinned: display_name = f"★ {display_name}"
-
+    # 1. Check for Reminder (High Priority Color)
     is_reminder = any(w['ref'] == service_ref and w['start_time'] == start_time for w in WATCHLIST)
-    if is_reminder: display_name = f"🔔 {display_name}"
+    
+    # 2. Check for Pinned
+    is_pinned = service_ref in PINNED_CHANNELS
+    
+    # Determine Color: Reminder takes precedence (Green) over Pinned (Yellow)
+    if is_reminder:
+        name_color = 0x00FF00 # GREEN
+    elif is_pinned:
+        name_color = 0xFFFF00 # YELLOW
+    else:
+        name_color = 0xFFFFFF # WHITE
+
+    # Determine Prefix Icon
+    if is_reminder:
+        display_name = f"🔔 {display_name}"
+    elif is_pinned:
+        display_name = f"★ {display_name}"
 
     short_cat = category_name[:5]
     progress_str = ""
@@ -407,22 +420,17 @@ class WhatToWatchScreen(Screen):
 
     def rebuild_visual_list(self):
         filtered = [x for x in self.full_list if (not self.current_filter or x["cat"] == self.current_filter) and (not self.current_sat_filter or x["sat"] == self.current_sat_filter)]
-        
-        # Sort: Pinned > Start > Name
         filtered.sort(key=lambda x: (
             0 if x["ref"] in PINNED_CHANNELS else 1, 
             x["start"], 
             x["name"]
         ))
-        
         show_prog = (self.time_offset == 0)
-        
         res_list = []
         for item in filtered:
             res_list.append(build_list_entry(item["cat"], item["name"], item["sat"], item["evt"], item["ref"], item["nib"], item["start"], item["dur"], show_prog))
         self["event_list"].setList(res_list)
         
-        # Update Channel Count
         filter_info = []
         if self.current_filter: filter_info.append(self.current_filter)
         if self.current_sat_filter: filter_info.append(self.current_sat_filter)
