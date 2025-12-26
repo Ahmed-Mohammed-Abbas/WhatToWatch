@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Crash Fix)
+#  Version: 3.3 (Watchlist via Green Button)
 #  Author: reali22
-#  Description: Fixed Red Button crash. Toggle Time + Reminders.
+#  Description: Watchlist moved to Satellite Filter (Green Button).
 # ============================================================================
 
 import os
@@ -25,11 +25,13 @@ from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo,
 from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer, ePicLoad
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
+import NavigationInstance
 
 # --- Configuration ---
 config.plugins.WhatToWatch = ConfigSubsection()
 config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fixed_size=False)
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
+config.plugins.WhatToWatch.transparent_bg = ConfigYesNo(default=False)
 
 # --- Constants ---
 VERSION = "3.3"
@@ -287,29 +289,68 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     ]
     return res
 
-# --- Main Screen ---
-class WhatToWatchScreen(Screen):
-    skin = f"""<screen position="0,0" size="700,860" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
-            <eLabel position="0,0" size="700,860" backgroundColor="#181818" zPosition="-1" />
-            <eLabel text="What to Watch" position="10,10" size="680,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
-            <eLabel text="By {AUTHOR}" position="10,45" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
-            <widget name="status_label" position="10,70" size="680,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
-            <widget name="event_list" position="5,110" size="690,630" scrollbarMode="showOnDemand" transparent="1" />
-            
-            <ePixmap pixmap="skin_default/buttons/red.png" position="20,760" size="25,25" alphatest="on" />
-            <widget name="key_red" position="55,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
-            <ePixmap pixmap="skin_default/buttons/yellow.png" position="20,800" size="25,25" alphatest="on" />
-            <widget name="key_yellow" position="55,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
-            <ePixmap pixmap="skin_default/buttons/green.png" position="350,760" size="25,25" alphatest="on" />
-            <widget name="key_green" position="385,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
-            <ePixmap pixmap="skin_default/buttons/blue.png" position="350,800" size="25,25" alphatest="on" />
-            <widget name="key_blue" position="385,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
-            <widget name="info_bar" position="10,830" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
+# --- Configuration Screen ---
+class WhatToWatchSetup(ConfigListScreen, Screen):
+    skin = """<screen position="center,center" size="800,400" title="Settings">
+            <widget name="config" position="10,10" size="780,300" scrollbarMode="showOnDemand" />
+            <widget name="key_green" position="10,360" size="780,40" zPosition="1" font="Regular;24" halign="center" valign="center" backgroundColor="#1f771f" transparent="0" />
         </screen>"""
-
     def __init__(self, session):
         Screen.__init__(self, session)
         self.session = session
+        self.list = []
+        ConfigListScreen.__init__(self, self.list, session=self.session)
+        self.createSetup()
+        self["key_green"] = Label("Save Settings")
+        self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
+            "green": self.save, "save": self.save, "cancel": self.cancel, "ok": self.save
+        }, -2)
+
+    def createSetup(self):
+        self.list = [
+            getConfigListEntry("Enable AI Categorization (Gemini)", config.plugins.WhatToWatch.enable_ai),
+            getConfigListEntry("Gemini API Key", config.plugins.WhatToWatch.api_key),
+            getConfigListEntry("Transparent Background", config.plugins.WhatToWatch.transparent_bg)
+        ]
+        self["config"].list = self.list
+        self["config"].setList(self.list)
+
+    def save(self):
+        for x in self["config"].list: x[1].save()
+        config.plugins.WhatToWatch.save()
+        self.close()
+
+    def cancel(self):
+        for x in self["config"].list: x[1].cancel()
+        self.close()
+
+# --- Main Screen ---
+class WhatToWatchScreen(Screen):
+    def __init__(self, session):
+        Screen.__init__(self, session)
+        self.session = session
+        
+        is_transparent = config.plugins.WhatToWatch.transparent_bg.value
+        bg_color = "#40000000" if is_transparent else "#181818"
+        
+        self.skin = f"""<screen position="0,0" size="700,860" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
+            <eLabel position="0,0" size="700,860" backgroundColor="{bg_color}" zPosition="-1" />
+            <eLabel text="What to Watch" position="10,10" size="680,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="{bg_color}" transparent="1" />
+            <eLabel text="By {AUTHOR}" position="10,45" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="{bg_color}" transparent="1" />
+            <widget name="status_label" position="10,70" size="680,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
+            <widget name="event_list" position="5,110" size="690,630" scrollbarMode="showOnDemand" transparent="1" />
+            
+            <ePixmap pixmap="skin_default/buttons/red.png" position="20,760" size="25,25" alphatest="on" />
+            <widget name="key_red" position="55,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/yellow.png" position="20,800" size="25,25" alphatest="on" />
+            <widget name="key_yellow" position="55,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/green.png" position="350,760" size="25,25" alphatest="on" />
+            <widget name="key_green" position="385,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/blue.png" position="350,800" size="25,25" alphatest="on" />
+            <widget name="key_blue" position="385,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
+            <widget name="info_bar" position="10,830" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="{bg_color}" transparent="1" />
+        </screen>"""
+
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
         self["event_list"].l.setFont(0, gFont("Regular", 26)) 
         self["event_list"].l.setFont(1, gFont("Regular", 22)) 
@@ -327,7 +368,7 @@ class WhatToWatchScreen(Screen):
             "ok": self.zap_channel,
             "ok_long": self.add_reminder,
             "cancel": self.close,
-            "red": self.toggle_time, # FIXED: Method name matches
+            "red": self.toggle_time,
             "green": self.show_sat_menu,
             "yellow": self.cycle_category,
             "blue": self.show_options_menu,
@@ -408,27 +449,45 @@ class WhatToWatchScreen(Screen):
         if self.processed_count % 50 == 0: self.rebuild_visual_list()
 
     def rebuild_visual_list(self):
-        filtered = [x for x in self.full_list if (not self.current_filter or x["cat"] == self.current_filter) and (not self.current_sat_filter or x["sat"] == self.current_sat_filter)]
-        filtered.sort(key=lambda x: (
-            0 if x["ref"] in PINNED_CHANNELS else 1, 
-            x["start"], 
-            x["name"]
-        ))
-        show_prog = (self.time_offset == 0)
+        # NEW: Watchlist View Logic via Green Button
+        if self.current_sat_filter == "watchlist":
+            # Build list dynamically from WATCHLIST
+            filtered = []
+            for w in WATCHLIST:
+                filtered.append({
+                    "cat": "Watch", "name": w['name'], "sat": "", "evt": w['evt'],
+                    "ref": w['ref'], "nib": 0, "start": w['start_time'], "dur": 0
+                })
+            # Sort Watchlist by time (Soonest first)
+            filtered.sort(key=lambda x: x["start"])
+        else:
+            # Standard Filter Logic
+            filtered = [x for x in self.full_list if (not self.current_filter or x["cat"] == self.current_filter) and (not self.current_sat_filter or x["sat"] == self.current_sat_filter)]
+            filtered.sort(key=lambda x: (
+                0 if x["ref"] in PINNED_CHANNELS else 1, 
+                x["start"], 
+                x["name"]
+            ))
+        
+        show_prog = (self.time_offset == 0) and (self.current_sat_filter != "watchlist")
         res_list = []
         for item in filtered:
             res_list.append(build_list_entry(item["cat"], item["name"], item["sat"], item["evt"], item["ref"], item["nib"], item["start"], item["dur"], show_prog))
         self["event_list"].setList(res_list)
         
-        filter_info = []
-        if self.current_filter: filter_info.append(self.current_filter)
-        if self.current_sat_filter: filter_info.append(self.current_sat_filter)
-        if self.time_offset > 0: filter_info.append(f"+{self.time_offset//3600}h")
-        
-        if filter_info:
-            status_text = f"Filter: {', '.join(filter_info)} | Channels: {len(filtered)}"
+        # Update Status Bar
+        if self.current_sat_filter == "watchlist":
+            status_text = f"Filter: ★ MY WATCHLIST | Reminders: {len(filtered)}"
         else:
-            status_text = f"All Channels | Total: {len(filtered)}"
+            filter_info = []
+            if self.current_filter: filter_info.append(self.current_filter)
+            if self.current_sat_filter: filter_info.append(self.current_sat_filter)
+            if self.time_offset > 0: filter_info.append(f"+{self.time_offset//3600}h")
+            if filter_info:
+                status_text = f"Filter: {', '.join(filter_info)} | Channels: {len(filtered)}"
+            else:
+                status_text = f"All Channels | Total: {len(filtered)}"
+        
         self["status_label"].setText(status_text)
 
     def toggle_time(self):
@@ -460,7 +519,7 @@ class WhatToWatchScreen(Screen):
         if cur: self.session.open(MessageBox, translate_text(cur[0][3]), type=MessageBox.TYPE_INFO)
 
     def show_options_menu(self):
-        menu = [("Set Reminder / Auto-Tune", "rem"), ("Pin/Unpin Channel", "pin"), ("Show Watchlist", "watch"), ("Toggle Source", "src"), ("Refresh List", "refresh"), ("Sort", "sort"), ("Update", "upd")]
+        menu = [("Set Reminder / Auto-Tune", "rem"), ("Pin/Unpin Channel", "pin"), ("Clear All Reminders", "clear"), ("Toggle Source", "src"), ("Refresh List", "refresh"), ("Sort", "sort"), ("Update", "upd"), ("Settings", "ai")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
 
     def menu_cb(self, choice):
@@ -472,18 +531,25 @@ class WhatToWatchScreen(Screen):
             if cur:
                 toggle_pin(cur[0][4])
                 self.rebuild_visual_list()
-        elif c == "watch": self.show_watchlist()
+        elif c == "clear": self.clear_all_reminders()
         elif c == "src": self.use_favorites = not self.use_favorites; self.start_full_rescan()
         elif c == "refresh": self.start_full_rescan()
         elif c == "sort": self.show_sort_menu()
         elif c == "upd": self.check_updates()
+        elif c == "ai": self.session.open(WhatToWatchSetup)
+
+    def clear_all_reminders(self):
+        global WATCHLIST
+        WATCHLIST = []
+        save_watchlist()
+        self.session.open(MessageBox, "All reminders cleared!", type=MessageBox.TYPE_INFO, timeout=2)
+        self.rebuild_visual_list()
 
     def add_reminder(self):
         cur = self["event_list"].getCurrent()
         if not cur: return
         data = cur[0] 
         
-        # Check existing
         existing = [x for x in WATCHLIST if x['ref'] == data[4] and x['start_time'] == data[5]]
         if existing:
             WATCHLIST.remove(existing[0])
@@ -510,15 +576,6 @@ class WhatToWatchScreen(Screen):
         self.session.open(MessageBox, "Reminder Set!", type=MessageBox.TYPE_INFO, timeout=3)
         self.rebuild_visual_list()
 
-    def show_watchlist(self):
-        text = "Your Watchlist:\n\n"
-        for item in WATCHLIST:
-            t = time.strftime("%H:%M %d/%m", time.localtime(item['start_time']))
-            type_str = "Auto-Zap" if item['type'] == 'zap' else "Notify"
-            rep_str = " (Weekly)" if item['repeat'] else ""
-            text += f"{t} | {item['name']}\n{item['evt']} [{type_str}{rep_str}]\n\n"
-        self.session.open(MessageBox, text, type=MessageBox.TYPE_INFO)
-
     def show_sort_menu(self):
         self.session.openWithCallback(self.sort_cb, ChoiceBox, title="Sort", list=[("Category", "category"), ("Channel", "channel"), ("Time", "time")])
 
@@ -527,8 +584,9 @@ class WhatToWatchScreen(Screen):
 
     def show_sat_menu(self):
         sats = sorted(list(set([x["sat"] for x in self.full_list if x["sat"]])))
-        menu = [("All", "all")] + [(s, s) for s in sats]
-        self.session.openWithCallback(lambda c: self.sat_cb(c), ChoiceBox, title="Select Satellite", list=menu)
+        # NEW: Watchlist option in Green Button Menu
+        menu = [("All", "all"), ("★ MY WATCHLIST", "watchlist")] + [(s, s) for s in sats]
+        self.session.openWithCallback(self.sat_cb, ChoiceBox, title="Select Satellite", list=menu)
 
     def sat_cb(self, c):
         if c: 
