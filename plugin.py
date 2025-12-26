@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Visual Highlight)
+#  Version: 3.3 (Audio Sink Fix)
 #  Author: reali22
-#  Description: Channel name turns GREEN when a reminder/zap is set.
+#  Description: Forced ALSA Sink for clear sound. Traffic Light Progress Colors.
 # ============================================================================
 
 import os
@@ -228,9 +228,10 @@ class WTWMonitor:
         if dirty: save_watchlist()
 
     def trigger_event(self, item):
+        # FIX: Forced ALSA Sink for Clear Audio + Volume 0.8
         if os.path.exists(SOUND_FILE):
             try:
-                cmd = f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} volume=0.9 > /dev/null 2>&1 &"
+                cmd = f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} audio-sink=\"alsasink\" volume=0.8 > /dev/null 2>&1 &"
                 os.system(cmd)
             except: pass
         
@@ -251,25 +252,17 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     display_name = channel_name
     if sat_info: display_name = f"{channel_name} ({sat_info})"
     
-    # 1. Check for Reminder (High Priority Color)
+    is_pinned = service_ref in PINNED_CHANNELS
     is_reminder = any(w['ref'] == service_ref and w['start_time'] == start_time for w in WATCHLIST)
     
-    # 2. Check for Pinned
-    is_pinned = service_ref in PINNED_CHANNELS
-    
-    # Determine Color: Reminder takes precedence (Green) over Pinned (Yellow)
     if is_reminder:
-        name_color = 0x00FF00 # GREEN
-    elif is_pinned:
-        name_color = 0xFFFF00 # YELLOW
-    else:
-        name_color = 0xFFFFFF # WHITE
-
-    # Determine Prefix Icon
-    if is_reminder:
+        name_color = 0x00FF00 # Green for Reminder
         display_name = f"🔔 {display_name}"
     elif is_pinned:
+        name_color = 0xFFFF00 # Yellow for Pinned
         display_name = f"★ {display_name}"
+    else:
+        name_color = 0xFFFFFF # White
 
     short_cat = category_name[:5]
     progress_str = ""
@@ -281,8 +274,14 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             percent = int(((current_time - start_time) / float(duration)) * 100)
             if percent > 100: percent = 100
             progress_str = f"{percent}%"
-            if percent > 85: progress_color = 0xFF4040 
-            elif percent > 10: progress_color = 0x00FF00
+            
+            # TRAFFIC LIGHT COLORS
+            if percent <= 35:
+                progress_color = 0x00FF00 # Green
+            elif percent <= 66:
+                progress_color = 0xFFFF00 # Yellow
+            else:
+                progress_color = 0xFF4040 # Red
 
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
