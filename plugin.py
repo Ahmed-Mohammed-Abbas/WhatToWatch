@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.1 (Auto-Picon Search)
+#  Version: 3.2 (Smart Picon Finder)
 #  Author: reali22
-#  Description: Automatically finds picons in system folders. Icons restored.
+#  Description: Tries 3 methods to find picons (Ref, Base Ref, Name).
 # ============================================================================
 
 import os
@@ -43,14 +43,14 @@ UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToW
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
 # --- PICON SEARCH PATHS ---
-# The plugin will look for picons in these folders, in this order.
 PICON_PATHS = [
     "/share/enigma2/Fury-FHD/piconProv/",  # Your custom path
-    "/usr/share/enigma2/picon/",           # Standard flash path
-    "/picon/",                             # Root picon folder
-    "/media/usb/picon/",                   # USB stick
-    "/media/hdd/picon/",                   # Hard Drive
-    "/media/mmc/picon/"                    # SD Card
+    "/usr/share/enigma2/picon/",           # Standard flash
+    "/picon/",                             # Root
+    "/media/usb/picon/",                   # USB
+    "/media/hdd/picon/",                   # HDD
+    "/media/mmc/picon/",                   # SD Card
+    "/usr/share/enigma2/picon_50x30/"      # Mini picons
 ]
 
 # --- SMART CATEGORY DATABASE ---
@@ -120,21 +120,24 @@ def load_png(path):
     if os.path.exists(path): return loadPNG(path)
     return None
 
-# NEW: Advanced Picon Finder
-def find_picon(service_ref, genre_nibble):
-    # Convert "1:0:1:283D:..." to "1_0_1_283D_..."
-    # Enigma2 picons use underscores instead of colons
-    ref_name = service_ref.strip().replace(":", "_").rstrip("_")
-    png_name = ref_name + ".png"
+# NEW SMART PICON FINDER (Method v5.1)
+def find_picon(service_ref, channel_name, genre_nibble):
+    # 1. Try EXACT Reference (1_0_1_...)
+    ref_clean = service_ref.strip().replace(":", "_").rstrip("_")
+    png_names = [
+        ref_clean + ".png",
+        ref_clean.replace("1_0_19", "1_0_1") + ".png", # HD fallback
+        channel_name.strip() + ".png"                  # Name fallback
+    ]
     
-    # 1. Search all system paths
     for path in PICON_PATHS:
         if os.path.exists(path):
-            full_path = os.path.join(path, png_name)
-            if os.path.exists(full_path):
-                return loadPNG(full_path)
+            for name in png_names:
+                full_path = os.path.join(path, name)
+                if os.path.exists(full_path):
+                    return loadPNG(full_path)
     
-    # 2. Fallback to Category Icon
+    # 2. Fallback to Category Icon if no Picon found
     icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x9: "science.png"}
     icon_name = icon_map.get(genre_nibble, "default.png")
     return load_png(os.path.join(ICON_PATH, icon_name)) or load_png(os.path.join(ICON_PATH, "default.png"))
@@ -211,10 +214,10 @@ def abbreviate_category(cat_name):
     }
     return subs.get(cat_name, cat_name[:5])
 
-# --- List Builder (Icons Restored + Smart Search) ---
+# --- List Builder (v5.1 Smart Picon) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
-    # USE NEW PICON SEARCH
-    icon_pixmap = find_picon(service_ref, genre_nibble)
+    # Pass Name for Fallback search
+    icon_pixmap = find_picon(service_ref, channel_name, genre_nibble)
     
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
@@ -243,12 +246,7 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # --- RESTORED LAYOUT with ICON (Total Width 700px) ---
-    # Col 1: Time (60px) -> x=15
-    # Col 2: Icon (45px) -> x=80
-    # Col 3: Text (390px) -> x=135
-    # Col 4: Info (110px) -> x=530
-
+    # --- LAYOUT (Total Width 700px) ---
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         MultiContentEntryText(pos=(15, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
