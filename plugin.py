@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3
+#  Version: 3.4 (Reminders & Auto-Tune)
 #  Author: reali22
-#  Description: EPG plugin by reali22
+#  Description: EPG Browser with Background Notifications & Zap Timers.
 # ============================================================================
 
 import os
 import time
-import re
 import json
 from sys import version_info
 from urllib.parse import quote
@@ -22,89 +21,80 @@ from Components.Label import Label
 from Components.MenuList import MenuList
 from Components.MultiContent import MultiContentEntryText, MultiContentEntryPixmapAlphaTest
 from Components.ConfigList import ConfigListScreen
-from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo, getConfigListEntry
-from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer, ePicLoad, eSize
+from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo, ConfigSelection, getConfigListEntry
+from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer, ePicLoad
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
+import NavigationInstance
 
 # --- Configuration ---
 config.plugins.WhatToWatch = ConfigSubsection()
 config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fixed_size=False)
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
+config.plugins.WhatToWatch.default_alert_time = ConfigSelection(default="5", choices=[("0", "At start"), ("5", "5 min before"), ("10", "10 min before"), ("15", "15 min before")])
 
 # --- Constants ---
-VERSION = "3.3"
+VERSION = "3.4"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
 PINNED_FILE = "/etc/enigma2/wtw_pinned.json"
+WATCHLIST_FILE = "/etc/enigma2/wtw_watchlist.json"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
 
-# --- PICON SEARCH PATHS ---
-# Added /omb/picon/ as requested
+# --- PICON PATHS ---
 PICON_PATHS = [
-    "/omb/picon/",                         # Priority 1: User Request
-    "/share/enigma2/Fury-FHD/piconProv/",  # Priority 2: Custom Skin
-    "/usr/share/enigma2/picon/",           # Standard flash
-    "/picon/",                             # Root
-    "/media/usb/picon/",                   # USB
-    "/media/hdd/picon/",                   # HDD
-    "/media/mmc/picon/"                    # SD Card
+    "/omb/picon/",
+    "/share/enigma2/Fury-FHD/piconProv/",
+    "/usr/share/enigma2/picon/",
+    "/picon/",
+    "/media/usb/picon/",
+    "/media/hdd/picon/",
+    "/media/mmc/picon/",
+    "/usr/share/enigma2/picon_50x30/"
 ]
 
-# --- SMART CATEGORY DATABASE ---
+# --- CATEGORY DATABASE ---
 CATEGORIES = {
-    "Kids": (
-        ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "cbeebies", "citv", "pop", "tiny", "junior", "jeem", "baraem", "fix & foxi", "duck", "minimini", "teletoon", "discovery kids", "pbs kids", "cbabc", "y tv", "vrak"],
-        ["cartoon", "animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "pig", "bear", "tales", "princess", "dragon", "lego", "pokemon", "bluey", "peppa"]
-    ),
-    "Sports": (
-        ["sport", "espn", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", "ad sport", "dubai sport", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport", "match!", "setanta", "extreme", "gol", "optus", "supersport", "willow", "cricket", "fox sports", "ten sports", "sony six", "star sports"],
-        [" vs ", "live:", "match", "cup", "league", "football", "soccer", "racing", "tournament", "championship", "derby", "qualifying", "final", "bundesliga", "laliga", "serie a", "premier league", "nfl", "nhl", "mlb", "cricket", "rugby"]
-    ),
-    "News": (
-        ["news", "cnn", "bbc", "jazeera", "alarabiya", "hadath", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw", "watania", "ekhbariya", "alaraby", "alghad", "asharq", "lbc", "tagesschau", "welt", "n-tv", "rai news", "24h", "msnbc", "fox news", "ndtv", "euronews", "i24", "nhk world", "cctv", "telesur", "press tv"],
-        ["news", "journal", "report", "briefing", "update", "headline", "politics", "weather", "parliament", "breaking", "bulletin", "newshour"]
-    ),
-    "Documentary": (
-        ["doc", "history", "historia", "nat geo", "national geographic", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte", "phoenix", "explorer", "smithsonian", "eden", "viasat", "focus", "dmax", "planete", "ushuaia", "rmc decouverte", "yesterday", "pbs", "curiosity"],
-        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "world war", "nature", "safari", "shark", "space", "myth", "legend"]
-    ),
-    "Movies": (
-        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "sky cinema", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "filmbox", "sony max", "star movies", "wb tv", "mgm", "hallmark", "lifetime", "showtime", "cinemax", "starz", "epix"],
-        ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "blockbuster"]
-    ),
-    "Religious": (
-        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", "ewtn", "bibel", "makkah", "madinah", "islam", "church", "peace tv", "huda", "guide", "daystar", "tbn", "catholic", "emmanuel", "faith"],
-        ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh", "sermon", "liturgy"]
-    ),
-    "Music": (
-        ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits", "trace", "mezzo", "classica", "nrj", "radio", "fm", "cmt", "bet j", "box hits", "clubland", "magic", "kerrang"],
-        ["concert", "videoclip", "hits", "top 40", "playlist", "songs", "symphony", "orchestra", "festival", "acoustic"]
-    ),
-    "Shows": (
-        ["drama", "series", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "rotana drama", "rotana khalijia", "zee alwan", "zee tv", "star plus", "colors", "sony", "sky one", "sky atlantic", "fox", "comedy central", "syfy", "axn", "novelas", "bet", "e!", "tlc", "bravo", "hgtv", "food network", "a&e", "usa network", "tnt", "tbs", "fx"],
-        ["episode", "season", "series", "show", "reality", "soap", "telenovela", "sitcom", "cooking", "game show"]
-    )
+    "Kids": (["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid"], ["cartoon", "animation", "anime", "sponge", "patrol", "mouse"]),
+    "Sports": (["sport", "espn", "bein", "sky", "bt sport", "euro", "dazn", "ssc", "alkass", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport"], ["match", "cup", "league", "football", "soccer", "racing", "derby", "final", "premier"]),
+    "News": (["news", "cnn", "bbc", "jazeera", "alarabiya", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw"], ["news", "journal", "report", "briefing", "update", "headline"]),
+    "Documentary": (["doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte"], ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari"]),
+    "Movies": (["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "mbc 2", "mbc max", "rotana cinema", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm"], ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance"]),
+    "Religious": (["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", "ewtn", "peace tv", "huda"], ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran"]),
+    "Music": (["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits"], ["concert", "videoclip", "hits", "playlist", "songs"]),
+    "Shows": (["drama", "series", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "rotana drama", "zee alwan", "zee tv", "colors", "sony", "fox", "axn", "novelas", "tlc"], ["episode", "season", "series", "show", "reality", "soap", "telenovela"])
 }
 
-ADULT_KEYWORDS = ["xxx", "18+", "porn", "adult", "sex", "erotic", "brazzers", "hustler", "playboy", "dorcel", "vivid", "redlight"]
-
-# --- PINNED CHANNELS MANAGER ---
+# --- GLOBAL HELPERS ---
+PICON_CACHE = {}
 PINNED_CHANNELS = []
-if os.path.exists(PINNED_FILE):
-    try:
-        with open(PINNED_FILE, 'r') as f:
-            PINNED_CHANNELS = json.load(f)
-    except: PINNED_CHANNELS = []
+WATCHLIST = []
+
+def load_data():
+    global PINNED_CHANNELS, WATCHLIST
+    if os.path.exists(PINNED_FILE):
+        try:
+            with open(PINNED_FILE, 'r') as f: PINNED_CHANNELS = json.load(f)
+        except: PINNED_CHANNELS = []
+    if os.path.exists(WATCHLIST_FILE):
+        try:
+            with open(WATCHLIST_FILE, 'r') as f: WATCHLIST = json.load(f)
+        except: WATCHLIST = []
 
 def save_pinned():
     try:
-        with open(PINNED_FILE, 'w') as f:
-            json.dump(PINNED_CHANNELS, f)
+        with open(PINNED_FILE, 'w') as f: json.dump(PINNED_CHANNELS, f)
     except: pass
+
+def save_watchlist():
+    try:
+        with open(WATCHLIST_FILE, 'w') as f: json.dump(WATCHLIST, f)
+    except: pass
+
+load_data()
 
 def toggle_pin(ref):
     if ref in PINNED_CHANNELS:
@@ -116,32 +106,12 @@ def toggle_pin(ref):
     save_pinned()
     return res
 
-# --- Global Helpers ---
-def load_png(path):
-    if os.path.exists(path): return loadPNG(path)
-    return None
-
-# --- RESIZING PICON LOADER ---
-# Cache to store resized pixmaps so we don't resize the same image 100 times
-PICON_CACHE = {}
-
 def get_picon_resized(service_ref, channel_name, genre_nibble):
-    # 1. Generate Cache Key
     ref_clean = service_ref.strip().replace(":", "_").rstrip("_")
+    if ref_clean in PICON_CACHE: return PICON_CACHE[ref_clean]
     
-    if ref_clean in PICON_CACHE:
-        return PICON_CACHE[ref_clean]
-
-    # 2. Find the file
     found_path = None
-    
-    # Try exact ref, HD ref, then name
-    candidates = [
-        ref_clean + ".png",
-        ref_clean.replace("1_0_19", "1_0_1") + ".png",
-        channel_name.strip() + ".png"
-    ]
-    
+    candidates = [ref_clean + ".png", ref_clean.replace("1_0_19", "1_0_1") + ".png", channel_name.strip() + ".png"]
     for path in PICON_PATHS:
         if os.path.exists(path):
             for name in candidates:
@@ -151,64 +121,34 @@ def get_picon_resized(service_ref, channel_name, genre_nibble):
                     break
         if found_path: break
     
-    # 3. Load & Resize (if found)
     if found_path:
         try:
-            # Load and Resize to 50x30 using ePicLoad
             sc = ePicLoad()
-            sc.setPara((50, 30, 1, 1, False, 1, "#00000000")) # Width=50, Height=30, Keep Aspect=1
+            sc.setPara((50, 30, 1, 1, False, 1, "#00000000"))
             if sc.startDecode(found_path, 0, 0, False) == 0:
-                # Wait/Check (Usually instant for small files, but we fetch result)
                 ptr = sc.getData()
                 if ptr:
                     PICON_CACHE[ref_clean] = ptr
                     return ptr
-        except:
-            pass # Fail silently back to default
+        except: pass
 
-    # 4. Fallback Category Icon (Pre-loaded, no resize needed usually small)
     icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x9: "science.png"}
     icon_name = icon_map.get(genre_nibble, "default.png")
-    
-    # Load fallback
     fallback = loadPNG(os.path.join(ICON_PATH, icon_name)) or loadPNG(os.path.join(ICON_PATH, "default.png"))
     PICON_CACHE[ref_clean] = fallback
     return fallback
 
-def is_adult(text):
-    if not text: return False
-    t = text.lower()
-    return any(k in t for k in ADULT_KEYWORDS) and "essex" not in t and "sussex" not in t
-
-# --- ENHANCED CLASSIFICATION LOGIC ---
 def classify_enhanced(channel_name, event_name):
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
-    
-    if is_adult(ch_clean) or is_adult(evt_clean): return None
-
+    if "xxx" in ch_clean or "18+" in ch_clean: return None
     for cat, (ch_kws, _) in CATEGORIES.items():
         for kw in ch_kws:
-            if kw in ch_clean: return get_cat_data(cat)
-
+            if kw in ch_clean: return cat
     for cat, (_, evt_kws) in CATEGORIES.items():
         for kw in evt_kws:
-            if kw in evt_clean: return get_cat_data(cat)
-
-    return ("General", 0x3)
-
-def get_cat_data(cat_name):
-    mapping = {
-        "Movies": 0x1, "News": 0x2, "Shows": 0x3, "Sports": 0x4,
-        "Kids": 0x5, "Music": 0x6, "Religious": 0x7, "Documentary": 0x9
-    }
-    return (cat_name, mapping.get(cat_name, 0x0))
-
-def clean_channel_name_fuzzy(name):
-    n = name.lower()
-    n = re.sub(r'\b(hd|sd|fhd|4k|uhd|hevc)\b', '', n)
-    n = re.sub(r'\+\d+', '', n) 
-    return re.sub(r'[\W_]+', '', n)
+            if kw in evt_clean: return cat
+    return "General"
 
 def get_sat_position(ref_str):
     if ref_str.startswith("4097:") or ref_str.startswith("5001:"): return "IPTV"
@@ -218,58 +158,79 @@ def get_sat_position(ref_str):
             ns_val = int(parts[6], 16)
             orb_pos = (ns_val >> 16) & 0xFFFF
             if orb_pos == 0xFFFF: return "DVB-T/C"
-            if orb_pos == 0: return ""
             if orb_pos > 1800: return f"{(3600 - orb_pos)/10.0:.1f}W"
             else: return f"{orb_pos/10.0:.1f}E"
     except: pass
     return ""
 
-def translate_text(text, target_lang='en'):
-    if not text or len(text) < 2: return "No description."
-    if any('\u0600' <= char <= '\u06FF' for char in text[:30]): return text
-    try:
-        encoded = quote(text)
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={encoded}"
-        cmd = f"curl -k -s -A 'Mozilla/5.0' '{url}' > /tmp/wtw_trans.json"
-        os.system(cmd)
-        if os.path.exists("/tmp/wtw_trans.json"):
-            with open("/tmp/wtw_trans.json", "r") as f:
-                data = json.load(f)
-            return data[0][0][0] if data and data[0] else text
-    except: pass
-    return text
+# --- BACKGROUND MONITOR ---
+class WTWMonitor:
+    def __init__(self, session):
+        self.session = session
+        self.timer = eTimer()
+        self.timer.callback.append(self.check_reminders)
+        self.timer.start(60000, False) # Check every minute
 
-def abbreviate_category(cat_name):
-    subs = {
-        "Documentary": "Doc.", "Religious": "Rel.", "Sports": "Sport",
-        "Movies": "Movie", "Entertainment": "Ent.", "General": "Gen.",
-        "Kids": "Kid", "Music": "Music", "News": "News"
-    }
-    return subs.get(cat_name, cat_name[:5])
+    def check_reminders(self):
+        now = int(time.time())
+        dirty = False
+        to_remove = []
+        
+        for item in WATCHLIST:
+            target_time = item['notify_at']
+            
+            # Allow 2 minute window for trigger
+            if now >= target_time and now < target_time + 120:
+                # Trigger Event
+                self.trigger_event(item)
+                
+                # Handle Weekly Repeat
+                if item.get('repeat', False):
+                    item['start_time'] += 604800 # +7 days
+                    item['notify_at'] += 604800
+                    dirty = True
+                else:
+                    to_remove.append(item)
+            
+            # Clean up old expired events (> 1 hour old)
+            elif now > target_time + 3600:
+                if not item.get('repeat', False):
+                    to_remove.append(item)
 
-# --- List Builder (Resized Picon Layout) ---
+        for item in to_remove:
+            if item in WATCHLIST:
+                WATCHLIST.remove(item)
+                dirty = True
+        
+        if dirty:
+            save_watchlist()
+
+    def trigger_event(self, item):
+        msg = f"[WhatToWatch] Reminder!\n\n{item['evt']}\nOn: {item['name']}"
+        if item['type'] == 'zap':
+            self.session.open(MessageBox, msg + "\n\nZapping now...", type=MessageBox.TYPE_INFO, timeout=5)
+            # Auto-Tune Logic
+            try:
+                NavigationInstance.instance.playService(eServiceReference(item['ref']))
+            except: pass
+        else:
+            self.session.open(MessageBox, msg, type=MessageBox.TYPE_INFO, timeout=10)
+
+# --- List Builder ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
-    # Load Resized Picon
     icon_pixmap = get_picon_resized(service_ref, channel_name, genre_nibble)
-    
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
-    is_pinned = service_ref in PINNED_CHANNELS
-    
     display_name = channel_name
-    if sat_info:
-        display_name = f"{channel_name} ({sat_info})"
+    if sat_info: display_name = f"{channel_name} ({sat_info})"
     
-    if is_pinned:
-        display_name = f"★ {display_name}"
-        name_color = 0xFFFF00
-    else:
-        name_color = 0xFFFFFF
+    name_color = 0xFFFF00 if service_ref in PINNED_CHANNELS else 0xFFFFFF
+    if service_ref in PINNED_CHANNELS: display_name = f"★ {display_name}"
 
-    short_cat = abbreviate_category(category_name)
-
+    short_cat = category_name[:5]
     progress_str = ""
-    progress_color = 0xFFFFFF 
+    progress_color = 0xFFFFFF
+    
     if show_progress and duration > 0:
         current_time = int(time.time())
         if start_time <= current_time < (start_time + duration):
@@ -278,18 +239,11 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             progress_str = f"{percent}%"
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
-    
-    # --- LAYOUT (Total Width 700px) ---
-    # Safe Margins + Picon Space
-    # 1. Time: x=15, w=60
-    # 2. Picon: x=80, w=50 (Resized to fit)
-    # 3. Channel: x=135, w=390
-    # 4. Info: x=530, w=110
 
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         MultiContentEntryText(pos=(15, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
-        MultiContentEntryPixmapAlphaTest(pos=(80, 15), size=(50, 30), png=icon_pixmap), # 50x30 box for resized picon
+        MultiContentEntryPixmapAlphaTest(pos=(80, 15), size=(50, 30), png=icon_pixmap),
         MultiContentEntryText(pos=(135, 5), size=(390, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
         MultiContentEntryText(pos=(135, 30), size=(390, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
         MultiContentEntryText(pos=(530, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
@@ -297,45 +251,9 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
     ]
     return res
 
-# --- Configuration Screen ---
-class WhatToWatchSetup(ConfigListScreen, Screen):
-    skin = """<screen position="center,center" size="800,400" title="Settings">
-            <widget name="config" position="10,10" size="780,300" scrollbarMode="showOnDemand" />
-            <widget name="key_green" position="10,360" size="780,40" zPosition="1" font="Regular;24" halign="center" valign="center" backgroundColor="#1f771f" transparent="0" />
-        </screen>"""
-    def __init__(self, session):
-        Screen.__init__(self, session)
-        self.session = session
-        self.list = []
-        ConfigListScreen.__init__(self, self.list, session=self.session)
-        self.createSetup()
-        self["key_green"] = Label("Save Settings")
-        self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
-            "green": self.save, "save": self.save, "cancel": self.cancel, "ok": self.save
-        }, -2)
-
-    def createSetup(self):
-        self.list = [
-            getConfigListEntry("Enable AI Categorization (Gemini)", config.plugins.WhatToWatch.enable_ai),
-            getConfigListEntry("Gemini API Key", config.plugins.WhatToWatch.api_key)
-        ]
-        self["config"].list = self.list
-        self["config"].setList(self.list)
-
-    def save(self):
-        for x in self["config"].list: x[1].save()
-        config.plugins.WhatToWatch.save()
-        self.close()
-
-    def cancel(self):
-        for x in self["config"].list: x[1].cancel()
-        self.close()
-
-# --- The GUI Screen ---
+# --- Main Screen ---
 class WhatToWatchScreen(Screen):
-    # Position: Left Sidebar. Width=700. Height=860.
-    skin = f"""
-        <screen position="0,0" size="700,860" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
+    skin = f"""<screen position="0,0" size="700,860" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
             <eLabel position="0,0" size="700,860" backgroundColor="#181818" zPosition="-1" />
             <eLabel text="What to Watch" position="10,10" size="680,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="#181818" transparent="1" />
             <eLabel text="By {AUTHOR}" position="10,45" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="#181818" transparent="1" />
@@ -351,15 +269,12 @@ class WhatToWatchScreen(Screen):
             <ePixmap pixmap="skin_default/buttons/blue.png" position="350,800" size="25,25" alphatest="on" />
             <widget name="key_blue" position="385,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="#181818" transparent="1" />
             <widget name="info_bar" position="10,830" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="#181818" transparent="1" />
-        </screen>
-    """
+        </screen>"""
 
     def __init__(self, session):
         Screen.__init__(self, session)
         self.session = session
         self["event_list"] = MenuList([], enableWrapAround=True, content=eListboxPythonMultiContent)
-        
-        # FONTS
         self["event_list"].l.setFont(0, gFont("Regular", 26)) 
         self["event_list"].l.setFont(1, gFont("Regular", 22)) 
         self["event_list"].l.setFont(2, gFont("Regular", 20)) 
@@ -381,20 +296,16 @@ class WhatToWatchScreen(Screen):
             "blue": self.show_options_menu,
             "menu": self.show_sort_menu,
             "info": self.show_translated_info,  
-            "epg": self.show_translated_info,   
         }, -1)
 
         self.full_list = []
         self.raw_services = [] 
         self.processed_count = 0
-        self.unique_channels = {}
-        
         self.current_filter = None
         self.current_sat_filter = None
         self.use_favorites = False
         self.sort_mode = 'category'
         self.lookup_time = int(time.time())
-        
         self.process_timer = eTimer()
         self.process_timer.callback.append(self.process_batch)
         self.onLayoutFinish.append(self.start_full_rescan)
@@ -402,29 +313,21 @@ class WhatToWatchScreen(Screen):
     def start_full_rescan(self):
         self.process_timer.stop()
         self.full_list = []
-        self.unique_channels = {}
         self.raw_services = []
         self.processed_count = 0
         self["event_list"].setList([])
-        
-        source_text = "Favorites" if self.use_favorites else "All Channels"
-        self["status_label"].setText(f"Loading {source_text}...")
         
         service_handler = eServiceCenter.getInstance()
         ref_str = '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "userbouquet.favourites.tv" ORDER BY bouquet' if self.use_favorites else '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "bouquets.tv" ORDER BY bouquet'
         bouquet_root = eServiceReference(ref_str)
         bouquet_list = service_handler.list(bouquet_root)
-        
-        if not bouquet_list:
-            self["status_label"].setText("Error: No Bouquets.")
-            return
+        if not bouquet_list: return
 
         bouquet_content = bouquet_list.getContent("SN", True)
         if not bouquet_content: return
 
         for bouquet_entry in bouquet_content:
-            bouquet_ref = eServiceReference(bouquet_entry[0])
-            services = service_handler.list(bouquet_ref)
+            services = service_handler.list(eServiceReference(bouquet_entry[0]))
             if services:
                 self.raw_services.extend(services.getContent("SN", True))
                 if len(self.raw_services) > 2000: break
@@ -445,137 +348,111 @@ class WhatToWatchScreen(Screen):
         for _ in range(BATCH_SIZE):
             if not self.raw_services: break
             s_ref, s_name = self.raw_services.pop(0)
-            
-            if "::" in s_ref or "---" in s_name: continue
+            if "::" in s_ref: continue
             
             try:
-                service_reference = eServiceReference(s_ref)
-                event = epg_cache.lookupEventTime(service_reference, self.lookup_time)
-                
-                if not event and (s_ref.startswith("4097:") or s_ref.startswith("5001:")):
-                    parts = s_ref.split(":")
-                    if len(parts) > 7:
-                        clean_str = "1:0:1:" + ":".join(parts[3:7]) + ":0:0:0:"
-                        event = epg_cache.lookupEventTime(eServiceReference(clean_str), self.lookup_time)
-
+                event = epg_cache.lookupEventTime(eServiceReference(s_ref), self.lookup_time)
                 if not event: continue
                 event_name = event.getEventName()
-                if not event_name: continue
+                category = classify_enhanced(s_name, event_name)
+                if not category: continue 
 
-                category, nibble = classify_enhanced(s_name, event_name)
-                if category is None: continue 
-
-                clean_ch = clean_channel_name_fuzzy(s_name)
-                is_hd = "hd" in s_name.lower()
-                start_time = event.getBeginTime()
-                duration = event.getDuration()
-                sat_info = get_sat_position(s_ref)
-                
                 entry_data = {
-                    "cat": category, "name": s_name, "sat": sat_info, "evt": event_name, 
-                    "ref": s_ref, "nib": nibble, "start": start_time, "dur": duration, 
-                    "hd": is_hd, "clean": clean_ch
+                    "cat": category, "name": s_name, "sat": get_sat_position(s_ref), "evt": event_name, 
+                    "ref": s_ref, "nib": 0, "start": event.getBeginTime(), "dur": event.getDuration()
                 }
-
-                if clean_ch in self.unique_channels:
-                    existing = self.unique_channels[clean_ch]
-                    if is_hd and not existing["hd"]:
-                        self.unique_channels[clean_ch] = entry_data
-                else:
-                    self.unique_channels[clean_ch] = entry_data
-
+                self.full_list.append(entry_data)
             except: continue
 
         self.processed_count += BATCH_SIZE
-        if self.processed_count % 50 == 0:
-            self.rebuild_visual_list()
-            self["status_label"].setText(f"Scanning... {len(self.full_list)} found")
+        if self.processed_count % 50 == 0: self.rebuild_visual_list()
 
     def rebuild_visual_list(self):
-        raw_list = list(self.unique_channels.values())
-        filtered = []
-        for item in raw_list:
-            if self.current_filter and item["cat"] != self.current_filter: continue
-            if self.current_sat_filter and item["sat"] != self.current_sat_filter: continue
-            filtered.append(item)
+        filtered = [x for x in self.full_list if (not self.current_filter or x["cat"] == self.current_filter) and (not self.current_sat_filter or x["sat"] == self.current_sat_filter)]
+        
+        filtered.sort(key=lambda x: (0 if x["ref"] in PINNED_CHANNELS else 1, x["cat"] if self.sort_mode == 'category' else x["name"]))
 
-        def get_sort_key(x):
-            is_pinned = x["ref"] in PINNED_CHANNELS
-            pin_score = 0 if is_pinned else 1
-            if self.sort_mode == 'category': return (pin_score, x["cat"], x["name"])
-            elif self.sort_mode == 'channel': return (pin_score, x["name"])
-            elif self.sort_mode == 'time': return (pin_score, x["start"])
-            return (pin_score, x["cat"])
-
-        filtered.sort(key=get_sort_key)
-
-        self.full_list = []
+        res_list = []
         for item in filtered:
-            entry = build_list_entry(
-                item["cat"], item["name"], item["sat"], item["evt"], item["ref"], 
-                item["nib"], item["start"], item["dur"], True
-            )
-            self.full_list.append(entry)
-
-        self["event_list"].setList(self.full_list)
+            res_list.append(build_list_entry(item["cat"], item["name"], item["sat"], item["evt"], item["ref"], item["nib"], item["start"], item["dur"], True))
+        self["event_list"].setList(res_list)
 
     def cycle_category(self):
-        cats = sorted(list(set([v["cat"] for v in self.unique_channels.values()])))
+        cats = sorted(list(set([x["cat"] for x in self.full_list])))
         if not cats: return
         if not self.current_filter: self.current_filter = cats[0]
         else:
             try:
                 idx = cats.index(self.current_filter)
-                if idx < len(cats) - 1: self.current_filter = cats[idx + 1]
-                else: self.current_filter = None
+                self.current_filter = cats[idx + 1] if idx < len(cats) - 1 else None
             except: self.current_filter = None
         self.rebuild_visual_list()
 
     def show_translated_info(self):
-        current_selection = self["event_list"].getCurrent()
-        if not current_selection: return
-        payload = current_selection[0]
-        self.session.open(MessageBox, "Translating...", type=MessageBox.TYPE_INFO, timeout=1)
-        epg_cache = eEPGCache.getInstance()
-        text = payload[3]
-        try:
-            event = epg_cache.lookupEventTime(eServiceReference(payload[4]), payload[5])
-            if event:
-                s = event.getShortDescription() or ""
-                e = event.getExtendedDescription() or ""
-                text = f"{payload[3]}\n\n{s}\n{e}"
-        except: pass
-        res = translate_text(text)
-        self.session.open(MessageBox, res, type=MessageBox.TYPE_INFO)
+        cur = self["event_list"].getCurrent()
+        if cur: self.session.open(MessageBox, translate_text(cur[0][3]), type=MessageBox.TYPE_INFO)
 
     def show_options_menu(self):
-        menu = [("Pin/Unpin Channel", "pin"), ("Toggle Source", "src"), ("Sort", "sort"), ("Update", "upd"), ("AI Settings", "ai")]
+        menu = [("Set Reminder / Auto-Tune", "rem"), ("Pin/Unpin Channel", "pin"), ("Show Watchlist", "watch"), ("Toggle Source", "src"), ("Sort", "sort"), ("Update", "upd")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
 
     def menu_cb(self, choice):
         if not choice: return
         c = choice[1]
-        if c == "pin":
-            current_selection = self["event_list"].getCurrent()
-            if current_selection:
-                ref = current_selection[0][4]
-                msg = toggle_pin(ref)
+        if c == "rem": self.add_reminder()
+        elif c == "pin":
+            cur = self["event_list"].getCurrent()
+            if cur:
+                toggle_pin(cur[0][4])
                 self.rebuild_visual_list()
-                self.session.open(MessageBox, msg, type=MessageBox.TYPE_INFO, timeout=1)
+        elif c == "watch": self.show_watchlist()
         elif c == "src": self.use_favorites = not self.use_favorites; self.start_full_rescan()
         elif c == "sort": self.show_sort_menu()
         elif c == "upd": self.check_updates()
-        elif c == "ai": self.session.open(WhatToWatchSetup)
 
-    def show_sat_menu(self):
-        sats = sorted(list(set([v["sat"] for v in self.unique_channels.values() if v["sat"]])))
-        menu = [("All", "all")] + [(s, s) for s in sats]
-        self.session.openWithCallback(self.sat_cb, ChoiceBox, title="Select Satellite", list=menu)
+    def add_reminder(self):
+        cur = self["event_list"].getCurrent()
+        if not cur: return
+        data = cur[0] # (cat, name, sat, evt, ref, start, dur)
+        
+        # Options: (Type, Offset, Repeat)
+        menu = [
+            ("Notification (At Start)", ("notify", 0)),
+            ("Notification (5 min before)", ("notify", 300)),
+            ("Notification (10 min before)", ("notify", 600)),
+            ("Auto-Tune (Zap at Start)", ("zap", 0)),
+            ("Weekly Notification", ("notify_week", 0))
+        ]
+        self.session.openWithCallback(lambda c: self.save_reminder(c, data), ChoiceBox, title="Set Reminder", list=menu)
 
-    def sat_cb(self, c):
-        if c: 
-            self.current_sat_filter = None if c[1] == "all" else c[1]
-            self.rebuild_visual_list()
+    def save_reminder(self, choice, data):
+        if not choice: return
+        type_code, offset = choice[1]
+        
+        repeat = False
+        if type_code == "notify_week":
+            type_code = "notify"
+            repeat = True
+            
+        notify_at = data[5] - offset
+        
+        entry = {
+            "ref": data[4], "name": data[1], "evt": data[3],
+            "start_time": data[5], "notify_at": notify_at,
+            "type": type_code, "repeat": repeat
+        }
+        WATCHLIST.append(entry)
+        save_watchlist()
+        self.session.open(MessageBox, "Reminder Set!", type=MessageBox.TYPE_INFO, timeout=3)
+
+    def show_watchlist(self):
+        text = "Your Watchlist:\n\n"
+        for item in WATCHLIST:
+            t = time.strftime("%H:%M %d/%m", time.localtime(item['start_time']))
+            type_str = "Auto-Zap" if item['type'] == 'zap' else "Notify"
+            rep_str = " (Weekly)" if item['repeat'] else ""
+            text += f"{t} | {item['name']}\n{item['evt']} [{type_str}{rep_str}]\n\n"
+        self.session.open(MessageBox, text, type=MessageBox.TYPE_INFO)
 
     def show_sort_menu(self):
         self.session.openWithCallback(self.sort_cb, ChoiceBox, title="Sort", list=[("Category", "category"), ("Channel", "channel"), ("Time", "time")])
@@ -583,31 +460,48 @@ class WhatToWatchScreen(Screen):
     def sort_cb(self, c):
         if c: self.sort_mode = c[1]; self.rebuild_visual_list()
 
+    def show_sat_menu(self):
+        sats = sorted(list(set([x["sat"] for x in self.full_list if x["sat"]])))
+        menu = [("All", "all")] + [(s, s) for s in sats]
+        self.session.openWithCallback(lambda c: self.sat_cb(c), ChoiceBox, title="Select Satellite", list=menu)
+
+    def sat_cb(self, c):
+        if c: 
+            self.current_sat_filter = None if c[1] == "all" else c[1]
+            self.rebuild_visual_list()
+
     def check_updates(self):
         try:
-            self.session.open(MessageBox, "Checking...", type=MessageBox.TYPE_INFO, timeout=2)
             os.system(f"wget --no-check-certificate -qO /tmp/wtw_ver {UPDATE_URL_VER}")
             if os.path.exists("/tmp/wtw_ver"):
-                with open("/tmp/wtw_ver", "r") as f:
-                    r_ver = f.read().strip()
-                    if r_ver > VERSION:
-                        self.session.openWithCallback(self.do_upd, MessageBox, f"Update {r_ver} available!", MessageBox.TYPE_YESNO)
+                with open("/tmp/wtw_ver") as f:
+                    if f.read().strip() > VERSION:
+                        self.session.openWithCallback(self.do_upd, MessageBox, "Update Available!", MessageBox.TYPE_YESNO)
                     else:
-                        self.session.open(MessageBox, f"Up to date ({VERSION})", MessageBox.TYPE_INFO)
-            else:
-                self.session.open(MessageBox, "Check failed.", MessageBox.TYPE_ERROR)
-        except Exception as e:
-            self.session.open(MessageBox, f"Error: {str(e)}", MessageBox.TYPE_ERROR)
+                        self.session.open(MessageBox, "Up to date.", MessageBox.TYPE_INFO)
+        except: pass
 
     def do_upd(self, c):
         if c:
             os.system(f"wget --no-check-certificate -qO {PLUGIN_FILE_PATH} {UPDATE_URL_PY}")
-            self.session.open(MessageBox, "Restarting...", type=MessageBox.TYPE_INFO, timeout=2)
-            time.sleep(1); quitMainloop(3)
+            quitMainloop(3)
 
     def zap_channel(self):
         cur = self["event_list"].getCurrent()
         if cur: self.session.nav.playService(eServiceReference(cur[0][4]))
 
+# --- GLOBAL MONITOR INSTANCE ---
+monitor = None
+
+def sessionstart(reason, **kwargs):
+    if "session" in kwargs:
+        global monitor
+        monitor = WTWMonitor(kwargs["session"])
+
 def main(session, **kwargs): session.open(WhatToWatchScreen)
-def Plugins(**kwargs): return [PluginDescriptor(name=f"What to Watch v{VERSION}", description=f"{AUTHOR}", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main)]
+
+def Plugins(**kwargs):
+    return [
+        PluginDescriptor(name=f"What to Watch v{VERSION}", description="EPG plugin by reali22", where=PluginDescriptor.WHERE_PLUGINMENU, icon="plugin.png", fnc=main),
+        PluginDescriptor(where=PluginDescriptor.WHERE_SESSIONSTART, fnc=sessionstart)
+    ]
