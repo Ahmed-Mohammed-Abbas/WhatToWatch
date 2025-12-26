@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.4 (Reminders & Auto-Tune)
+#  Version: 3.1 (Fix & Stability)
 #  Author: reali22
-#  Description: EPG Browser with Background Notifications & Zap Timers.
+#  Description: EPG plugin by reali22. Background Reminders & Auto-Tune.
 # ============================================================================
 
 import os
@@ -25,16 +25,14 @@ from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo,
 from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer, ePicLoad
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
-import NavigationInstance
 
 # --- Configuration ---
 config.plugins.WhatToWatch = ConfigSubsection()
 config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fixed_size=False)
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
-config.plugins.WhatToWatch.default_alert_time = ConfigSelection(default="5", choices=[("0", "At start"), ("5", "5 min before"), ("10", "10 min before"), ("15", "15 min before")])
 
 # --- Constants ---
-VERSION = "3.4"
+VERSION = "3.1"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
@@ -106,6 +104,10 @@ def toggle_pin(ref):
     save_pinned()
     return res
 
+def load_png(path):
+    if os.path.exists(path): return loadPNG(path)
+    return None
+
 def get_picon_resized(service_ref, channel_name, genre_nibble):
     ref_clean = service_ref.strip().replace(":", "_").rstrip("_")
     if ref_clean in PICON_CACHE: return PICON_CACHE[ref_clean]
@@ -163,6 +165,21 @@ def get_sat_position(ref_str):
     except: pass
     return ""
 
+def translate_text(text, target_lang='en'):
+    if not text or len(text) < 2: return "No description."
+    if any('\u0600' <= char <= '\u06FF' for char in text[:30]): return text
+    try:
+        encoded = quote(text)
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={encoded}"
+        cmd = f"curl -k -s -A 'Mozilla/5.0' '{url}' > /tmp/wtw_trans.json"
+        os.system(cmd)
+        if os.path.exists("/tmp/wtw_trans.json"):
+            with open("/tmp/wtw_trans.json", "r") as f:
+                data = json.load(f)
+            return data[0][0][0] if data and data[0] else text
+    except: pass
+    return text
+
 # --- BACKGROUND MONITOR ---
 class WTWMonitor:
     def __init__(self, session):
@@ -178,21 +195,14 @@ class WTWMonitor:
         
         for item in WATCHLIST:
             target_time = item['notify_at']
-            
-            # Allow 2 minute window for trigger
             if now >= target_time and now < target_time + 120:
-                # Trigger Event
                 self.trigger_event(item)
-                
-                # Handle Weekly Repeat
                 if item.get('repeat', False):
                     item['start_time'] += 604800 # +7 days
                     item['notify_at'] += 604800
                     dirty = True
                 else:
                     to_remove.append(item)
-            
-            # Clean up old expired events (> 1 hour old)
             elif now > target_time + 3600:
                 if not item.get('repeat', False):
                     to_remove.append(item)
@@ -209,9 +219,9 @@ class WTWMonitor:
         msg = f"[WhatToWatch] Reminder!\n\n{item['evt']}\nOn: {item['name']}"
         if item['type'] == 'zap':
             self.session.open(MessageBox, msg + "\n\nZapping now...", type=MessageBox.TYPE_INFO, timeout=5)
-            # Auto-Tune Logic
             try:
-                NavigationInstance.instance.playService(eServiceReference(item['ref']))
+                # Use session.nav instead of importing NavigationInstance
+                self.session.nav.playService(eServiceReference(item['ref']))
             except: pass
         else:
             self.session.open(MessageBox, msg, type=MessageBox.TYPE_INFO, timeout=10)
@@ -240,6 +250,7 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
 
+    # Layout: Time(15,60) | Picon(80,50) | Text(135,390) | Info(530,110)
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         MultiContentEntryText(pos=(15, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
