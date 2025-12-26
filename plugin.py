@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Smart OK Menu Fix)
+#  Version: 3.3 (OK Menu Crash Fix)
 #  Author: reali22
-#  Description: Reminder option hidden for started programs to prevent errors.
+#  Description: Fixed crash when selecting 'Set Reminder' from OK button menu.
 # ============================================================================
 
 import os
@@ -25,7 +25,6 @@ from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo,
 from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer, ePicLoad
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
-import NavigationInstance
 
 # --- Configuration ---
 config.plugins.WhatToWatch = ConfigSubsection()
@@ -318,6 +317,7 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
     def save(self):
         for x in self["config"].list: x[1].save()
         config.plugins.WhatToWatch.save()
+        self.session.open(MessageBox, "Settings Saved. Please restart the plugin to see changes.", MessageBox.TYPE_INFO, timeout=3)
         self.close()
 
     def cancel(self):
@@ -331,10 +331,11 @@ class WhatToWatchScreen(Screen):
         self.session = session
         
         is_transparent = config.plugins.WhatToWatch.transparent_bg.value
-        bg_color = "#40000000" if is_transparent else "#181818"
+        bg_color = "#80000000" if is_transparent else "#ff181818"
         
-        self.skin = f"""<screen position="0,0" size="700,860" title="What to Watch" flags="wfNoBorder" backgroundColor="#20000000">
+        self.skin = f"""<screen position="0,0" size="700,860" title="What to Watch" flags="wfNoBorder" backgroundColor="#00000000">
             <eLabel position="0,0" size="700,860" backgroundColor="{bg_color}" zPosition="-1" />
+            
             <eLabel text="What to Watch" position="10,10" size="680,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="{bg_color}" transparent="1" />
             <eLabel text="By {AUTHOR}" position="10,45" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="{bg_color}" transparent="1" />
             <widget name="status_label" position="10,70" size="680,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
@@ -342,12 +343,16 @@ class WhatToWatchScreen(Screen):
             
             <ePixmap pixmap="skin_default/buttons/red.png" position="20,760" size="25,25" alphatest="on" />
             <widget name="key_red" position="55,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
+            
             <ePixmap pixmap="skin_default/buttons/yellow.png" position="20,800" size="25,25" alphatest="on" />
             <widget name="key_yellow" position="55,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
+            
             <ePixmap pixmap="skin_default/buttons/green.png" position="350,760" size="25,25" alphatest="on" />
             <widget name="key_green" position="385,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
+            
             <ePixmap pixmap="skin_default/buttons/blue.png" position="350,800" size="25,25" alphatest="on" />
             <widget name="key_blue" position="385,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
+            
             <widget name="info_bar" position="10,830" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="{bg_color}" transparent="1" />
         </screen>"""
 
@@ -540,24 +545,18 @@ class WhatToWatchScreen(Screen):
         self.session.open(MessageBox, "All reminders cleared!", type=MessageBox.TYPE_INFO, timeout=2)
         self.rebuild_visual_list()
 
-    # OK BUTTON LOGIC (Fixed)
+    # FIXED: OK Button Logic (Safe)
     def ok_pressed(self):
         cur = self["event_list"].getCurrent()
         if not cur: return
         data = cur[0] 
-        
         existing = [x for x in WATCHLIST if x['ref'] == data[4] and x['start_time'] == data[5]]
-        # FIX: Check if Future
         is_future = data[5] > int(time.time())
-
         menu = [("Zap to Channel Now", "zap")]
-        
         if existing:
             menu.append(("Remove Reminder", "remove_rem"))
         elif is_future:
-            # ONLY SHOW IF FUTURE to prevent error
             menu.append(("Set Reminder / Auto-Tune", "rem"))
-            
         self.session.openWithCallback(lambda c: self.ok_menu_cb(c, data), ChoiceBox, title="Action Selection", list=menu)
 
     def ok_menu_cb(self, choice, data):
@@ -566,10 +565,10 @@ class WhatToWatchScreen(Screen):
         if action == "zap":
             self.session.nav.playService(eServiceReference(data[4]))
         elif action == "remove_rem":
-            self.add_reminder() # Toggles OFF
+            self.add_reminder() 
         elif action == "rem":
-            self.save_reminder(choice, data) # Directly to save if picked from OK menu? No, add_reminder logic
-            self.add_reminder() # Use add_reminder to open the sub-menu
+            # FIX: Only Open Menu, don't Save
+            self.add_reminder() 
 
     def add_reminder(self):
         cur = self["event_list"].getCurrent()
