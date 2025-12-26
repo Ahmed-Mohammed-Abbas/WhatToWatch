@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (Toggle Reminders)
+#  Version: 3.3 (Crash Fix)
 #  Author: reali22
-#  Description: Selecting a program again deletes the reminder (Toggle).
+#  Description: Fixed Red Button crash. Toggle Time + Reminders.
 # ============================================================================
 
 import os
@@ -25,7 +25,6 @@ from Components.config import config, ConfigSubsection, ConfigText, ConfigYesNo,
 from enigma import eEPGCache, eServiceReference, eServiceCenter, eListboxPythonMultiContent, gFont, RT_HALIGN_LEFT, RT_VALIGN_CENTER, RT_HALIGN_RIGHT, RT_HALIGN_CENTER, loadPNG, quitMainloop, eTimer, ePicLoad
 from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 from Plugins.Plugin import PluginDescriptor
-import NavigationInstance
 
 # --- Configuration ---
 config.plugins.WhatToWatch = ConfigSubsection()
@@ -283,11 +282,7 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
         MultiContentEntryPixmapAlphaTest(pos=(80, 15), size=(50, 30), png=icon_pixmap),
         MultiContentEntryText(pos=(135, 5), size=(390, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
         MultiContentEntryText(pos=(135, 30), size=(390, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
-        
-        # Category (Top Right)
         MultiContentEntryText(pos=(530, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=short_cat, color=0xFFFF00, color_sel=0xFFFF00),
-        
-        # Progress (Bottom Right)
         MultiContentEntryText(pos=(530, 30), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=progress_str, color=progress_color, color_sel=progress_color),
     ]
     return res
@@ -332,7 +327,7 @@ class WhatToWatchScreen(Screen):
             "ok": self.zap_channel,
             "ok_long": self.add_reminder,
             "cancel": self.close,
-            "red": self.toggle_time,
+            "red": self.toggle_time, # FIXED: Method name matches
             "green": self.show_sat_menu,
             "yellow": self.cycle_category,
             "blue": self.show_options_menu,
@@ -436,7 +431,7 @@ class WhatToWatchScreen(Screen):
             status_text = f"All Channels | Total: {len(filtered)}"
         self["status_label"].setText(status_text)
 
-    def show_time_menu(self):
+    def toggle_time(self):
         times = [0, 3600, 7200, 14400, 21600, 28800]
         try:
             current_idx = times.index(self.time_offset)
@@ -488,18 +483,15 @@ class WhatToWatchScreen(Screen):
         if not cur: return
         data = cur[0] 
         
-        # Check if already in Watchlist
+        # Check existing
         existing = [x for x in WATCHLIST if x['ref'] == data[4] and x['start_time'] == data[5]]
-        
         if existing:
-            # REMOVE Reminder
             WATCHLIST.remove(existing[0])
             save_watchlist()
             self.session.open(MessageBox, "Reminder Removed!", type=MessageBox.TYPE_INFO, timeout=2)
-            self.rebuild_visual_list() # Update list to remove bell icon
+            self.rebuild_visual_list()
             return
 
-        # NEW Reminder Check
         if data[5] <= int(time.time()):
             self.session.open(MessageBox, "Program already started! Cannot set reminder.", type=MessageBox.TYPE_ERROR)
             return
