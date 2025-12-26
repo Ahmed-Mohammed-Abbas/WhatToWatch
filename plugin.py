@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.1 (Picon Support)
+#  Version: 3.1 (Auto-Picon Search)
 #  Author: reali22
-#  Description: Loads Picons from /share/enigma2/Fury-FHD/piconProv
+#  Description: Automatically finds picons in system folders. Icons restored.
 # ============================================================================
 
 import os
@@ -33,16 +33,25 @@ config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fi
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.1"
+VERSION = "3.2"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 PLUGIN_FILE_PATH = os.path.join(PLUGIN_PATH, "plugin.py")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
-# Custom Picon Path
-CUSTOM_PICON_PATH = "/share/enigma2/Fury-FHD/piconProv/" 
 PINNED_FILE = "/etc/enigma2/wtw_pinned.json"
 UPDATE_URL_VER = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/version.txt"
 UPDATE_URL_PY = "https://raw.githubusercontent.com/Ahmed-Mohammed-Abbas/WhatToWatch/main/plugin.py"
+
+# --- PICON SEARCH PATHS ---
+# The plugin will look for picons in these folders, in this order.
+PICON_PATHS = [
+    "/share/enigma2/Fury-FHD/piconProv/",  # Your custom path
+    "/usr/share/enigma2/picon/",           # Standard flash path
+    "/picon/",                             # Root picon folder
+    "/media/usb/picon/",                   # USB stick
+    "/media/hdd/picon/",                   # Hard Drive
+    "/media/mmc/picon/"                    # SD Card
+]
 
 # --- SMART CATEGORY DATABASE ---
 CATEGORIES = {
@@ -111,19 +120,23 @@ def load_png(path):
     if os.path.exists(path): return loadPNG(path)
     return None
 
-# New Picon Loader Function
-def get_picon(ref_str, nibble):
-    # 1. Try to load specific channel Picon from Custom Path
-    # Convert ref "1:0:1:..." to "1_0_1_..."
-    picon_name = ref_str.replace(":", "_").rstrip("_") + ".png"
-    picon_path = os.path.join(CUSTOM_PICON_PATH, picon_name)
+# NEW: Advanced Picon Finder
+def find_picon(service_ref, genre_nibble):
+    # Convert "1:0:1:283D:..." to "1_0_1_283D_..."
+    # Enigma2 picons use underscores instead of colons
+    ref_name = service_ref.strip().replace(":", "_").rstrip("_")
+    png_name = ref_name + ".png"
     
-    if os.path.exists(picon_path):
-        return loadPNG(picon_path)
-        
-    # 2. Fallback to Category Icon if no Picon found
+    # 1. Search all system paths
+    for path in PICON_PATHS:
+        if os.path.exists(path):
+            full_path = os.path.join(path, png_name)
+            if os.path.exists(full_path):
+                return loadPNG(full_path)
+    
+    # 2. Fallback to Category Icon
     icon_map = {0x1: "movies.png", 0x2: "news.png", 0x3: "show.png", 0x4: "sports.png", 0x5: "kids.png", 0x6: "music.png", 0x7: "arts.png", 0x9: "science.png"}
-    icon_name = icon_map.get(nibble, "default.png")
+    icon_name = icon_map.get(genre_nibble, "default.png")
     return load_png(os.path.join(ICON_PATH, icon_name)) or load_png(os.path.join(ICON_PATH, "default.png"))
 
 def is_adult(text):
@@ -192,16 +205,16 @@ def translate_text(text, target_lang='en'):
 
 def abbreviate_category(cat_name):
     subs = {
-        "Documentary": "Doc.", "Religious": "Rel.", "Sports": "Sport",
+        "Documentary": "Doc.", "Religious": "Relig.", "Sports": "Sport",
         "Movies": "Movie", "Entertainment": "Ent.", "General": "Gen.",
         "Kids": "Kid", "Music": "Music", "News": "News"
     }
     return subs.get(cat_name, cat_name[:5])
 
-# --- List Builder (Layout v4.9) ---
+# --- List Builder (Icons Restored + Smart Search) ---
 def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, genre_nibble, start_time, duration, show_progress=True):
-    # CHANGED: Load Picon from Custom Path
-    icon_pixmap = get_picon(service_ref, genre_nibble)
+    # USE NEW PICON SEARCH
+    icon_pixmap = find_picon(service_ref, genre_nibble)
     
     time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
     
@@ -230,7 +243,12 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
             if percent > 85: progress_color = 0xFF4040 
             elif percent > 10: progress_color = 0x00FF00
     
-    # --- LAYOUT (Total Width 700px) ---
+    # --- RESTORED LAYOUT with ICON (Total Width 700px) ---
+    # Col 1: Time (60px) -> x=15
+    # Col 2: Icon (45px) -> x=80
+    # Col 3: Text (390px) -> x=135
+    # Col 4: Info (110px) -> x=530
+
     res = [
         (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
         MultiContentEntryText(pos=(15, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
