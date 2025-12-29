@@ -53,3 +53,29 @@ This method is "fuzzy" and works across Arabic, English, French, German, Italian
    * Massive Database: Expanded the internal database to automatically recognize hundreds of additional channels (Sports, Kids, Movies, News, etc.).
    * Smart Abbreviations: Long category names are automatically abbreviated (e.g., "Documentary" -> "Doc.", "Entertainment" -> "Ent.") to save screen space.
  * Tiered Sorting Logic: Channels are sorted by Pinned Status -> Category -> Channel Name for the most intuitive browsing experience.
+
+- Version 3.3
+🚀 Upgrade Your E2 Experience: What to Watch v3.3 is Here! 📺
+I have completely overhauled the What to Watch plugin to make it the ultimate EPG and Reminder tool for your Enigma2 receiver. Stop scrolling aimlessly and start watching!
+✨ New & Powerful Features:
+🎨 Stunning Visuals:
+ * Traffic Light Progress: Progress bars change color (🟢 Green <35%, 🟡 Yellow <66%, 🔴 Red >66%) so you know exactly how much time is left.
+ * Visual Highlights: Channel names turn Green when a reminder is set and Yellow when pinned.
+ * Transparent Mode: New option in settings to make the background transparent for a modern look.
+ * Smart Picons: Auto-resizing and smart searching for channel logos.
+🔔 Advanced Reminders:
+ * Smart Alerts: Choose between Notification or Auto-Zap.
+ * Weekly Repeat: Never miss an episode of your favorite series.
+ * Integrated Watchlist: Press the Green Button to see your personal "My Watchlist" view instantly.
+ * Crystal Clear Sound: Fixed audio alerts using ALSA for notification sounds without static noise.
+⚡ Speed & Control:
+ * Chronological Sorting: Channels are sorted by start time, showing you what starts soonest.
+ * Time Travel: Press the Red Button to instantly toggle time slots (+1h, +2h, +4h, etc.).
+ * Smart Context Menu: Press OK to decide: Zap immediately or Set/Remove a reminder.
+ * Power Shortcuts: Long-press OK to instantly toggle reminders on/off.
+🛠️ Reliability:
+ * Crash Fixes: Enhanced stability and smarter menus that adapt if a program has already started.
+ * Clear All: One-click option to wipe all old notifications.
+👇 Download the update now and take control of your TV!
+
+
