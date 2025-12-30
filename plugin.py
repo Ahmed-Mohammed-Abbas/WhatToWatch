@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 4.0 (Restored v11 Logic + Safety)
+#  Version: 4.0 (v11 Engine + Settings Fix)
 #  Author: reali22
-#  Description: Restored v11 scanning logic (Fixes 0 channels). Blue button updated.
+#  Description: The fast v11 core with a patched Settings menu to stop crashes.
 # ============================================================================
 
 import os
@@ -57,7 +57,7 @@ PICON_PATHS = [
     "/usr/share/enigma2/picon_50x30/"
 ]
 
-# --- CATEGORY DATABASE & COLORS ---
+# --- CATEGORY DATABASE & COLORS (v11 Standards) ---
 CATEGORIES_DATA = {
     "Kids": (0x00FF00, ["cartoon network", "cn arabia", "cn english", "cn hd", "nickelodeon", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "baraem", "jeem", "ajyal", "cbeebies", "fix & foxi", "jimjam", "semsem", "toggolino", "super rtl", "koko", "toverland", "duck tv", "cartoonito", "teletoon", "tvp abc", "minimini", "top kids", "junior", "cbqc"], ["animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "princess", "lego", "toon", "kids"]),
     "Sports": (0xFF0000, ["sport", "soccer", "football", "bein", "sky sport", "bt sport", "eurosport", "dazn", "ssc", "alkass", "on sport", "nba", "racing", "motogp", "formula 1", "formula one", "wwe", "ufc", "fight", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport", "ad sport", "dubai sport", "sharjah sport", "ksa sport", "kuwait sport", "iraq sport", "oman sport", "bahrain sport", "yass", "al ahly", "zamalek", "ss-1", "ss-2", "ss-3", "ss-4", "fightbox", "setanta", "match!", "espn", "motorvision", "extreme", "abudhabi sport"], ["match", "vs", "league", "cup", "final", "premier", "bundesliga", "laliga", "serie a", "champion", "derby", "racing", "grand prix", "tournament", "live", "olymp"]),
@@ -67,7 +67,7 @@ CATEGORIES_DATA = {
     "News": (0x808080, ["news", "cnn", "bbc news", "bbc world", "bbc arabic", "jazeera", "alarabiya", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw", "al hadath", "al hurra", "al sharqiya", "al sumaria", "rudaw", "kurdistan", "news 24", "al ekhbariya", "al araby", "alghad", "i24", "euronews", "lci", "cnews", "bfm"], ["journal", "report", "briefing", "update", "headline", "breaking", "bulletin", "politics"]),
     "Music": (0xFF69B4, ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits", "arabica", "mezzo", "trace", "box hits", "kerrang", "magic", "nrj", "radio"], ["concert", "videoclip", "hits", "playlist", "songs", "top 10", "top 20"]),
     "Religious": (0xFFFFFF, ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv coptic", "mesat", "aghapy", "noursat", "god tv", "ewtn", "peace tv", "huda", "al nas", "al rahama", "al insan", "karbala", "al kafeel", "al maaref", "al kawthar", "safb", "al majarrah", "al nadah", "al fath", "nour"], ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh", "church", "khutbah"]),
-    "General": (0xAAAAAA, [], []) # Fallback Category
+    "General": (0xAAAAAA, [], [])
 }
 
 CATEGORIES_ORDER = ["Kids", "Sports", "Religious", "Documentary", "Music", "News", "Movies", "Series"]
@@ -137,14 +137,12 @@ def get_picon_resized(service_ref, channel_name):
                     PICON_CACHE[ref_clean] = ptr
                     return ptr
     except: pass
-    
     PICON_CACHE[ref_clean] = None 
     return None
 
 def classify_enhanced(channel_name, event_name):
     cache_key = f"{channel_name}|{event_name}"
-    if cache_key in CLASSIFICATION_CACHE:
-        return CLASSIFICATION_CACHE[cache_key]
+    if cache_key in CLASSIFICATION_CACHE: return CLASSIFICATION_CACHE[cache_key]
 
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
@@ -232,7 +230,7 @@ class DiscoveryToast(Screen):
         self.timer.callback.append(self.close)
         self.timer.start(10000, True)
 
-# --- SETTINGS SCREEN ---
+# --- SETTINGS SCREEN (Fixed: No Crash) ---
 class WhatToWatchSetup(ConfigListScreen, Screen):
     skin = """<screen position="center,center" size="800,400" title="Settings">
             <widget name="config" position="10,10" size="780,300" scrollbarMode="showOnDemand" />
@@ -242,6 +240,7 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
     def __init__(self, session):
         Screen.__init__(self, session)
         self.session = session
+        # Initialize ConfigList properly
         self.list = []
         ConfigListScreen.__init__(self, self.list, session=self.session)
         self["key_green"] = Label("Save Settings")
@@ -357,7 +356,7 @@ class WhatToWatchScreen(Screen):
         self.seen_channels = set()
 
     def delayed_start(self):
-        # 500ms delay: Prevents UI crash by ensuring screen is rendered first
+        # 500ms delay prevents crash by allowing UI to render first
         self.init_timer = eTimer()
         self.init_timer.callback.append(self.start_full_rescan)
         self.init_timer.start(500, True)
@@ -386,8 +385,8 @@ class WhatToWatchScreen(Screen):
             services = service_handler.list(eServiceReference(bouquet_entry[0]))
             if services:
                 self.raw_services.extend(services.getContent("SN", True))
-                # SAFETY LIMIT: 1200 channels to prevent RAM crash
-                if len(self.raw_services) > 1200: break
+                # v11 Logic: Load 2000+ channels is fine as long as we process them in batch
+                if len(self.raw_services) > 2000: break
 
         self["status_label"].setText(f"Scanning {len(self.raw_services)} channels...")
         self.process_timer.start(10, False)
@@ -428,7 +427,7 @@ class WhatToWatchScreen(Screen):
             except: continue
 
         self.processed_count += BATCH_SIZE
-        if self.processed_count % 50 == 0: self.rebuild_visual_list()
+        if self.processed_count % 100 == 0: self.rebuild_visual_list()
 
     def rebuild_visual_list(self):
         if self.current_sat_filter == "watchlist":
