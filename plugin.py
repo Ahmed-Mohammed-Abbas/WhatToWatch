@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 4.0 (The Ultimate Edition)
+#  Version: 4.0 (Settings Crash Fix & Update Option)
 #  Author: reali22
-#  Description: Visual Progress Bars, Genre Color Tags, Smart Caching, Zero Lag.
+#  Description: Fixed Settings crash. Added Update option to Blue Menu.
 # ============================================================================
 
 import os
@@ -58,69 +58,22 @@ PICON_PATHS = [
 ]
 
 # --- CATEGORY DATABASE & COLORS ---
-# Format: "Category": (ColorHex, [Keywords], [EventKeywords])
 CATEGORIES_DATA = {
-    "Kids": (0x00FF00, # Green
-        ["cartoon network", "cn arabia", "cn english", "cn hd", "nickelodeon", "nick", "disney", "boomerang", 
-         "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "baraem", 
-         "jeem", "ajyal", "cbeebies", "fix & foxi", "jimjam", "semsem", "toggolino", "super rtl", "koko", 
-         "toverland", "duck tv", "cartoonito", "teletoon", "tvp abc", "minimini", "top kids", "junior", "cbqc"], 
-        ["animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "princess", "lego", "toon", "kids"]),
-    
-    "Sports": (0xFF0000, # Red
-        ["sport", "soccer", "football", "bein", "sky sport", "bt sport", "eurosport", "dazn", "ssc", "alkass", "on sport", 
-         "nba", "racing", "motogp", "formula 1", "formula one", "wwe", "ufc", "fight", "arena", "tsn", "super", "calcio", 
-         "canal+ sport", "eleven", "polsat sport", "ad sport", "dubai sport", "sharjah sport", "ksa sport", 
-         "kuwait sport", "iraq sport", "oman sport", "bahrain sport", "yass", "al ahly", "zamalek", 
-         "ss-1", "ss-2", "ss-3", "ss-4", "fightbox", "setanta", "match!", "espn", "motorvision", "extreme", "abudhabi sport"], 
-        ["match", "vs", "league", "cup", "final", "premier", "bundesliga", "laliga", "serie a", "champion", 
-         "derby", "racing", "grand prix", "tournament", "live", "olymp"]),
-    
-    "Movies": (0x0000FF, # Blue
-        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "mbc 2", "mbc max", "mbc action", "mbc bollywood",
-         "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", 
-         "tcm", "star movies", "dubai one", "mpc", "art aflam", "lbc movies", "top movies", "scare", "imagine", 
-         "c1 action", "c1", "fx", "mgm", "action", "thriller", "warner", "tnt", "tcm"], 
-        ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "movie"]),
-    
-    "Series": (0xFFA500, # Orange
-        ["drama", "series", "serial", "novela", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", 
-         "rotana drama", "zee alwan", "zee tv", "colors", "sony", "fox", "axn", "tlc", "lbc", "mtv lebanon", 
-         "al jadeed", "syria drama", "amman", "roya", "dmc", "cbc", "osn series", "netflix", "al hayah", 
-         "panorama drama", "beta", "sama", "lan", "usv", "bbc brit", "bbc first", "itv", "dizi", "ana", "ent", 
-         "tf1", "m6", "w9", "rai", "duna", "polsat", "tvn", "antena"], 
-        ["episode", "season", "series", "soap", "telenovela", "sitcom"]),
-        
-    "Documentary": (0x800080, # Purple
-        ["discovery", "doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", 
-         "tlc", "quest", "arte", "geographic", "explorer", "viasat", "iasat history", "iasat nature", "ad nat geo", 
-         "oman cultural", "al jazeera doc", "dw doc", "bbc earth", "bbc lifestyle", "fatafeat", "travel", "food", 
-         "hgtv", "dtx", "id", "planete", "ushuaia", "rmc decouverte", "focus"], 
-        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari", "space"]),
-        
-    "News": (0x808080, # Grey
-        ["news", "cnn", "bbc news", "bbc world", "bbc arabic", "jazeera", "alarabiya", "skynews", "cnbc", "bloomberg", 
-         "weather", "rt ", "france 24", "trt", "dw", "al hadath", "al hurra", "al sharqiya", "al sumaria", 
-         "rudaw", "kurdistan", "news 24", "al ekhbariya", "al araby", "alghad", "i24", "euronews", "lci", "cnews", "bfm"], 
-        ["journal", "report", "briefing", "update", "headline", "breaking", "bulletin", "politics"]),
-        
-    "Music": (0xFF69B4, # Pink
-        ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", 
-         "kiss", "dance", "hits", "arabica", "mezzo", "trace", "box hits", "kerrang", "magic", "nrj", "radio"], 
-        ["concert", "videoclip", "hits", "playlist", "songs", "top 10", "top 20"]),
-        
-    "Religious": (0xFFFFFF, # White
-        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv coptic", "mesat", "aghapy", 
-         "noursat", "god tv", "ewtn", "peace tv", "huda", "al nas", "al rahama", "al insan", "karbala", 
-         "al kafeel", "al maaref", "al kawthar", "safb", "al majarrah", "al nadah", "al fath", "nour"], 
-        ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh", "church", "khutbah"])
+    "Kids": (0x00FF00, ["cartoon network", "cn arabia", "cn english", "cn hd", "nickelodeon", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "baraem", "jeem", "ajyal", "cbeebies", "fix & foxi", "jimjam", "semsem", "toggolino", "super rtl", "koko", "toverland", "duck tv", "cartoonito", "teletoon", "tvp abc", "minimini", "top kids", "junior", "cbqc"], ["animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "princess", "lego", "toon", "kids"]),
+    "Sports": (0xFF0000, ["sport", "soccer", "football", "bein", "sky sport", "bt sport", "eurosport", "dazn", "ssc", "alkass", "on sport", "nba", "racing", "motogp", "formula 1", "formula one", "wwe", "ufc", "fight", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport", "ad sport", "dubai sport", "sharjah sport", "ksa sport", "kuwait sport", "iraq sport", "oman sport", "bahrain sport", "yass", "al ahly", "zamalek", "ss-1", "ss-2", "ss-3", "ss-4", "fightbox", "setanta", "match!", "espn", "motorvision", "extreme", "abudhabi sport"], ["match", "vs", "league", "cup", "final", "premier", "bundesliga", "laliga", "serie a", "champion", "derby", "racing", "grand prix", "tournament", "live", "olymp"]),
+    "Movies": (0x0000FF, ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "mbc 2", "mbc max", "mbc action", "mbc bollywood", "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm", "star movies", "dubai one", "mpc", "art aflam", "lbc movies", "top movies", "scare", "imagine", "c1 action", "c1", "fx", "mgm", "action", "thriller", "warner", "tnt", "tcm"], ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "movie"]),
+    "Series": (0xFFA500, ["drama", "series", "serial", "novela", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "rotana drama", "zee alwan", "zee tv", "colors", "sony", "fox", "axn", "tlc", "lbc", "mtv lebanon", "al jadeed", "syria drama", "amman", "roya", "dmc", "cbc", "osn series", "netflix", "al hayah", "panorama drama", "beta", "sama", "lan", "usv", "bbc brit", "bbc first", "itv", "dizi", "ana", "ent", "tf1", "m6", "w9", "rai", "duna", "polsat", "tvn", "antena"], ["episode", "season", "series", "soap", "telenovela", "sitcom"]),
+    "Documentary": (0x800080, ["discovery", "doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", "tlc", "quest", "arte", "geographic", "explorer", "viasat", "iasat history", "iasat nature", "ad nat geo", "oman cultural", "al jazeera doc", "dw doc", "bbc earth", "bbc lifestyle", "fatafeat", "travel", "food", "hgtv", "dtx", "id", "planete", "ushuaia", "rmc decouverte", "focus"], ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari", "space"]),
+    "News": (0x808080, ["news", "cnn", "bbc news", "bbc world", "bbc arabic", "jazeera", "alarabiya", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw", "al hadath", "al hurra", "al sharqiya", "al sumaria", "rudaw", "kurdistan", "news 24", "al ekhbariya", "al araby", "alghad", "i24", "euronews", "lci", "cnews", "bfm"], ["journal", "report", "briefing", "update", "headline", "breaking", "bulletin", "politics"]),
+    "Music": (0xFF69B4, ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits", "arabica", "mezzo", "trace", "box hits", "kerrang", "magic", "nrj", "radio"], ["concert", "videoclip", "hits", "playlist", "songs", "top 10", "top 20"]),
+    "Religious": (0xFFFFFF, ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv coptic", "mesat", "aghapy", "noursat", "god tv", "ewtn", "peace tv", "huda", "al nas", "al rahama", "al insan", "karbala", "al kafeel", "al maaref", "al kawthar", "safb", "al majarrah", "al nadah", "al fath", "nour"], ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh", "church", "khutbah"])
 }
 
 CATEGORIES_ORDER = ["Kids", "Sports", "Religious", "Documentary", "Music", "News", "Movies", "Series"]
 
 # --- GLOBAL HELPERS ---
 PICON_CACHE = {}
-CLASSIFICATION_CACHE = {} # Memory optimization
+CLASSIFICATION_CACHE = {}
 PINNED_CHANNELS = []
 WATCHLIST = []
 GLOBAL_SERVICE_LIST = []
@@ -184,12 +137,10 @@ def get_picon_resized(service_ref, channel_name):
                     return ptr
         except: pass
     
-    # Fallback transparent
     PICON_CACHE[ref_clean] = None 
     return None
 
 def classify_enhanced(channel_name, event_name):
-    # Optimization: Cache classification to avoid re-looping string matching
     cache_key = f"{channel_name}|{event_name}"
     if cache_key in CLASSIFICATION_CACHE:
         return CLASSIFICATION_CACHE[cache_key]
@@ -234,7 +185,6 @@ def translate_text(text, target_lang='en'):
     try:
         if not text: return ""
         encoded = quote(text)
-        # Timeout 2s to prevent UI freeze
         url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={encoded}"
         cmd = f"curl -k -s --max-time 2 -A 'Mozilla/5.0' '{url}' > /tmp/wtw_trans.json"
         os.system(cmd)
@@ -245,23 +195,21 @@ def translate_text(text, target_lang='en'):
     except: pass
     return text
 
-# --- DISCOVERY TOAST (Glass Slate Style) ---
+# --- DISCOVERY TOAST ---
 class DiscoveryToast(Screen):
     def __init__(self, session, mode, category, channel_name, event_name, start_time=None):
         Screen.__init__(self, session)
-        
-        # Determine Header Color & Text
         if mode == "now":
-            accent = "#FF0000" # Red
+            accent = "#FF0000"
             header = f"NOW SHOWING • {category}"
-            title_col = "#FFD700" # Gold
+            title_col = "#FFD700"
         elif mode == "next":
-            accent = "#00FF00" # Green
+            accent = "#00FF00"
             t_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time else ""
             header = f"COMING NEXT • {t_str}"
             title_col = "#90EE90"
         elif mode == "tonight":
-            accent = "#1E90FF" # Blue
+            accent = "#1E90FF"
             t_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time else ""
             header = f"TONIGHT • {t_str}"
             title_col = "#87CEFA"
@@ -270,7 +218,6 @@ class DiscoveryToast(Screen):
             <screen position="20,20" size="450,110" title="Discovery" flags="wfNoBorder" backgroundColor="#40000000">
                 <eLabel position="0,0" size="450,110" backgroundColor="#AA101520" zPosition="-1" />
                 <eLabel position="0,0" size="6,110" backgroundColor="{accent}" zPosition="1" />
-                
                 <widget name="header" position="15,5" size="420,25" font="Regular;18" halign="left" foregroundColor="#CCCCCC" backgroundColor="#AA101520" transparent="1" />
                 <widget name="channel" position="15,30" size="420,35" font="Regular;28" halign="left" foregroundColor="{title_col}" backgroundColor="#AA101520" transparent="1" />
                 <widget name="event" position="15,70" size="420,30" font="Regular;22" halign="left" foregroundColor="#FFFFFF" backgroundColor="#AA101520" transparent="1" />
@@ -279,220 +226,57 @@ class DiscoveryToast(Screen):
         self["header"] = Label(header)
         self["channel"] = Label(channel_name)
         self["event"] = Label(event_name)
-        
         self["actions"] = ActionMap(["OkCancelActions"], {"cancel": self.close, "ok": self.close}, -1)
         self.timer = eTimer()
         self.timer.callback.append(self.close)
         self.timer.start(10000, True)
 
-# --- TOP NOTIFICATION ---
-class WTWNotification(Screen):
-    skin = """
-        <screen position="center,30" size="1000,100" title="Reminder" flags="wfNoBorder" backgroundColor="#40000000">
-            <eLabel position="0,0" size="1000,100" backgroundColor="#20101010" zPosition="-1" />
-            <eLabel text="!" position="20,20" size="60,60" font="Regular;48" halign="center" valign="center" foregroundColor="#FFFF00" backgroundColor="#20101010" transparent="1" />
-            <widget name="message" position="100,10" size="880,80" font="Regular;28" valign="center" halign="left" foregroundColor="#FFFFFF" backgroundColor="#20101010" transparent="1" />
-        </screen>
-    """
-    def __init__(self, session, message, timeout=5):
-        Screen.__init__(self, session)
-        self["message"] = Label(message)
-        self.timer = eTimer()
-        self.timer.callback.append(self.close)
-        self.timer.start(timeout * 1000, True)
-
-# --- BACKGROUND MONITOR ---
-class WTWMonitor:
+# --- SETTINGS SCREEN (Fixed Crash) ---
+class WhatToWatchSetup(ConfigListScreen, Screen):
+    skin = """<screen position="center,center" size="800,400" title="Settings">
+            <widget name="config" position="10,10" size="780,300" scrollbarMode="showOnDemand" />
+            <widget name="key_green" position="10,360" size="780,40" zPosition="1" font="Regular;24" halign="center" valign="center" backgroundColor="#1f771f" transparent="0" />
+        </screen>"""
+    
     def __init__(self, session):
+        Screen.__init__(self, session)
         self.session = session
+        self.list = []
+        ConfigListScreen.__init__(self, self.list, session=self.session)
         
-        # Reminder Timer (60s)
-        self.timer = eTimer()
-        self.timer.callback.append(self.check_reminders)
-        self.timer.start(60000, False)
+        self["key_green"] = Label("Save Settings")
+        self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
+            "green": self.save, "save": self.save, "cancel": self.cancel, "ok": self.save
+        }, -2)
         
-        # Discovery
-        self.discovery_timer = eTimer()
-        self.discovery_timer.callback.append(self.discovery_tick)
-        self.discovery_cat_idx = 0
-        
-        # Cache Builder
-        self.scan_timer = eTimer()
-        self.scan_timer.callback.append(self.build_cache)
-        self.scan_timer.start(5000, True)
+        self.onLayoutFinish.append(self.layoutFinished)
 
-        if config.plugins.WhatToWatch.discovery_mode.value:
-            self.discovery_timer.start(60000, False)
+    def layoutFinished(self):
+        self.list = [
+            getConfigListEntry("Enable AI Categorization (Gemini)", config.plugins.WhatToWatch.enable_ai),
+            getConfigListEntry("Gemini API Key", config.plugins.WhatToWatch.api_key),
+            getConfigListEntry("Transparent Background", config.plugins.WhatToWatch.transparent_bg),
+            getConfigListEntry("Enable Discovery Mode", config.plugins.WhatToWatch.discovery_mode)
+        ]
+        self["config"].list = self.list
+        self["config"].setList(self.list)
 
-    def build_cache(self):
-        global GLOBAL_SERVICE_LIST
-        service_handler = eServiceCenter.getInstance()
-        # Fetch TV Bouquets
-        ref_str = '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "bouquets.tv" ORDER BY bouquet'
-        bouquet_root = eServiceReference(ref_str)
-        bouquet_list = service_handler.list(bouquet_root)
-        if not bouquet_list: return
+    def save(self):
+        for x in self["config"].list: x[1].save()
+        config.plugins.WhatToWatch.save()
+        if monitor:
+            if config.plugins.WhatToWatch.discovery_mode.value:
+                monitor.discovery_timer.start(60000, False)
+            else:
+                monitor.discovery_timer.stop()
+        self.session.open(MessageBox, "Settings Saved.", MessageBox.TYPE_INFO, timeout=2)
+        self.close()
 
-        bouquet_content = bouquet_list.getContent("SN", True)
-        if not bouquet_content: return
+    def cancel(self):
+        for x in self["config"].list: x[1].cancel()
+        self.close()
 
-        temp_list = []
-        for bouquet_entry in bouquet_content:
-            services = service_handler.list(eServiceReference(bouquet_entry[0]))
-            if services:
-                # Get services (limit total to 5000 to save RAM)
-                temp_list.extend(services.getContent("SN", True))
-                if len(temp_list) > 5000: break
-        
-        GLOBAL_SERVICE_LIST = temp_list
-
-    def discovery_tick(self):
-        if not config.plugins.WhatToWatch.discovery_mode.value: return
-        if not GLOBAL_SERVICE_LIST: 
-            self.build_cache()
-            if not GLOBAL_SERVICE_LIST: return
-
-        epg_cache = eEPGCache.getInstance()
-        now = int(time.time())
-        found_item = None
-        
-        attempts = 0
-        max_attempts = len(CATEGORIES_ORDER) * 2 
-        
-        # Loop until we find something valid
-        while not found_item and attempts < max_attempts:
-            cat_name = CATEGORIES_ORDER[self.discovery_cat_idx]
-            self.discovery_cat_idx = (self.discovery_cat_idx + 1) % len(CATEGORIES_ORDER)
-            attempts += 1
-            
-            # Logic: 50% Now, 30% Next, 20% Tonight
-            roll = random.randint(1, 10)
-            hour = time.localtime(now).tm_hour
-            
-            mode = "now"
-            if roll > 8: 
-                if hour < 22: mode = "tonight"
-                else: mode = "next"
-            elif roll > 5:
-                mode = "next"
-            
-            # Try 30 random channels
-            for _ in range(30):
-                try:
-                    s_ref, s_name = random.choice(GLOBAL_SERVICE_LIST)
-                    if "::" in s_ref: continue
-                    
-                    event = None
-                    if mode == "now":
-                        event = epg_cache.lookupEventTime(eServiceReference(s_ref), now)
-                    elif mode == "next":
-                        event = epg_cache.lookupEventTime(eServiceReference(s_ref), now + 3600)
-                    elif mode == "tonight":
-                        event = epg_cache.lookupEventTime(eServiceReference(s_ref), now + 14400) # +4 hours
-
-                    if not event: continue
-                    event_name = event.getEventName()
-                    if not event_name: continue
-                    
-                    cat = classify_enhanced(s_name, event_name)
-                    if cat == cat_name:
-                        trans_name = translate_text(event_name)
-                        start_t = event.getBeginTime()
-                        found_item = (mode, cat, s_name, trans_name, start_t)
-                        break
-                except: continue
-            
-            if found_item: break
-            
-        if found_item:
-            self.session.open(DiscoveryToast, found_item[0], found_item[1], found_item[2], found_item[3], found_item[4])
-
-    def check_reminders(self):
-        now = int(time.time())
-        dirty = False
-        to_remove = []
-        for item in WATCHLIST:
-            target = item['notify_at']
-            if now >= target and now < target + 120:
-                self.trigger_event(item)
-                if item.get('repeat', False):
-                    item['start_time'] += 604800
-                    item['notify_at'] += 604800
-                    dirty = True
-                else:
-                    to_remove.append(item)
-            elif now > target + 3600:
-                if not item.get('repeat', False):
-                    to_remove.append(item)
-        for item in to_remove:
-            if item in WATCHLIST:
-                WATCHLIST.remove(item)
-                dirty = True
-        if dirty: save_watchlist()
-
-    def trigger_event(self, item):
-        if os.path.exists(SOUND_FILE):
-            try:
-                os.system(f"gst-launch-1.0 playbin uri=file://{SOUND_FILE} audio-sink=\"alsasink\" volume=0.8 > /dev/null 2>&1 &")
-            except: pass
-        
-        msg = f"{item['evt']}\nOn: {item['name']}"
-        if item['type'] == 'zap':
-            self.session.open(WTWNotification, message=msg + "\nAuto-Tuning...", timeout=5)
-            try: self.session.nav.playService(eServiceReference(item['ref']))
-            except: pass
-        else:
-            self.session.open(WTWNotification, message=msg, timeout=8)
-
-# --- List Builder (Optimized Visuals) ---
-def build_list_entry(category_name, channel_name, sat_info, event_name, service_ref, start_time, duration):
-    icon_pixmap = get_picon_resized(service_ref, channel_name)
-    time_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time > 0 else ""
-    
-    display_name = f"{channel_name} ({sat_info})" if sat_info else channel_name
-    
-    # Status Checks
-    is_pinned = service_ref in PINNED_CHANNELS
-    is_reminder = any(w['ref'] == service_ref and w['start_time'] == start_time for w in WATCHLIST)
-    
-    name_color = 0xFFFFFF # White
-    if is_reminder:
-        name_color = 0x00FF00 # Green
-        display_name = f"🔔 {display_name}"
-    elif is_pinned:
-        name_color = 0xFFFF00 # Yellow
-        display_name = f"★ {display_name}"
-
-    # Category Color Strip
-    cat_color = CATEGORIES_DATA.get(category_name, (0x808080, [], []))[0]
-    
-    # Progress Bar Calculation
-    progress_val = 0
-    if duration > 0:
-        now = int(time.time())
-        if start_time <= now < (start_time + duration):
-            progress_val = int(((now - start_time) / float(duration)) * 100)
-            if progress_val > 100: progress_val = 100
-
-    return [
-        (category_name, channel_name, sat_info, event_name, service_ref, start_time, duration),
-        # 1. Color Strip (Category)
-        MultiContentEntryText(pos=(2, 0), size=(8, 80), font=0, flags=RT_HALIGN_LEFT, text="", backcolor=cat_color, backcolor_sel=cat_color),
-        # 2. Time
-        MultiContentEntryText(pos=(15, 5), size=(60, 25), font=2, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=time_str, color=0x00FFFF, color_sel=0x00FFFF),
-        # 3. Picon
-        MultiContentEntryPixmapAlphaTest(pos=(80, 15), size=(50, 30), png=icon_pixmap),
-        # 4. Channel Name
-        MultiContentEntryText(pos=(135, 5), size=(390, 25), font=0, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=display_name, color=name_color, color_sel=name_color),
-        # 5. Event Name
-        MultiContentEntryText(pos=(135, 30), size=(390, 25), font=1, flags=RT_HALIGN_LEFT|RT_VALIGN_CENTER, text=event_name, color=0xA0A0A0, color_sel=0xD0D0D0),
-        # 6. Category Name (Top Right)
-        MultiContentEntryText(pos=(530, 5), size=(110, 25), font=1, flags=RT_HALIGN_RIGHT|RT_VALIGN_CENTER, text=category_name[:9], color=0xFFFF00, color_sel=0xFFFF00),
-        # 7. Progress Bar (Bottom Right) - Replaces % text
-        MultiContentEntryProgress(pos=(530, 35), size=(110, 8), percent=progress_val, borderWidth=1, foreColor=0x00FF00) if progress_val > 0 else MultiContentEntryText(pos=(0,0), size=(0,0), text="")
-    ]
-
-# --- Main Screen ---
+# --- MAIN SCREEN ---
 class WhatToWatchScreen(Screen):
     def __init__(self, session):
         Screen.__init__(self, session)
@@ -603,6 +387,7 @@ class WhatToWatchScreen(Screen):
             
             try:
                 sat_pos = get_sat_position(s_ref)
+                
                 unique_id = f"{s_name}_{sat_pos}"
                 if unique_id in self.seen_channels: continue
                 self.seen_channels.add(unique_id)
@@ -677,7 +462,14 @@ class WhatToWatchScreen(Screen):
     def show_options_menu(self):
         disc_state = config.plugins.WhatToWatch.discovery_mode.value
         disc_text = "Disable Discovery" if disc_state else "Enable Discovery"
-        menu = [("Set Reminder", "rem"), ("Pin/Unpin", "pin"), ("Clear Reminders", "clear"), (disc_text, "toggle_disc"), ("Refresh", "refresh"), ("Settings", "ai")]
+        # UPDATED: Added Update Option
+        menu = [("Set Reminder", "rem"), 
+                ("Pin/Unpin", "pin"), 
+                ("Clear Reminders", "clear"), 
+                (disc_text, "toggle_disc"), 
+                ("Refresh", "refresh"), 
+                ("Update Plugin", "upd"), # NEW
+                ("Settings", "ai")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
 
     def menu_cb(self, choice):
@@ -690,6 +482,7 @@ class WhatToWatchScreen(Screen):
         elif c == "clear": self.clear_all_reminders()
         elif c == "toggle_disc": self.toggle_discovery_mode()
         elif c == "refresh": self.start_full_rescan()
+        elif c == "upd": self.check_updates() # Handle update
         elif c == "ai": self.session.open(WhatToWatchSetup)
 
     def toggle_discovery_mode(self):
@@ -764,9 +557,28 @@ class WhatToWatchScreen(Screen):
     def sat_cb(self, c):
         if c: self.current_sat_filter = None if c[1] == "all" else c[1]; self.rebuild_visual_list()
 
-# --- GLOBAL MONITOR INSTANCE ---
-monitor = None
+    def check_updates(self):
+        try:
+            os.system(f"wget --no-check-certificate -qO /tmp/wtw_ver {UPDATE_URL_VER}")
+            if os.path.exists("/tmp/wtw_ver"):
+                with open("/tmp/wtw_ver") as f:
+                    if f.read().strip() > VERSION:
+                        self.session.openWithCallback(self.do_upd, MessageBox, "Update Available!", MessageBox.TYPE_YESNO)
+                    else:
+                        self.session.open(MessageBox, "Up to date.", MessageBox.TYPE_INFO)
+        except: pass
 
+    def do_upd(self, c):
+        if c:
+            os.system(f"wget --no-check-certificate -qO {PLUGIN_FILE_PATH} {UPDATE_URL_PY}")
+            quitMainloop(3)
+
+    def zap_channel(self):
+        cur = self["event_list"].getCurrent()
+        if cur: self.session.nav.playService(eServiceReference(cur[0][4]))
+
+# --- GLOBAL MONITOR ---
+monitor = None
 def sessionstart(reason, **kwargs):
     if "session" in kwargs:
         global monitor
