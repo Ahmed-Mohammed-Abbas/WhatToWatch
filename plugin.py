@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 4.0 (Stable Core & Memory Safe)
+#  Version: 4.0 (v11.0 Restored + Settings Fix)
 #  Author: reali22
-#  Description: v11.0 Engine with 1000 channel safety limit + Settings Fix.
+#  Description: Exact v11.0 loading engine with Settings crash fix & Update option.
 # ============================================================================
 
 import os
@@ -346,19 +346,13 @@ class WhatToWatchScreen(Screen):
         self.processed_count = 0
         self.current_filter = None
         self.current_sat_filter = None
-        self.use_favorites = True # Safer Default
+        self.use_favorites = False
         self.sort_mode = 'category'
         self.time_offset = 0
         self.process_timer = eTimer()
         self.process_timer.callback.append(self.process_batch)
-        self.onLayoutFinish.append(self.delayed_start)
+        self.onLayoutFinish.append(self.start_full_rescan)
         self.seen_channels = set()
-
-    def delayed_start(self):
-        # 500ms delay prevents crash by allowing UI to render first
-        self.init_timer = eTimer()
-        self.init_timer.callback.append(self.start_full_rescan)
-        self.init_timer.start(500, True)
 
     def start_full_rescan(self):
         self.process_timer.stop()
@@ -384,8 +378,7 @@ class WhatToWatchScreen(Screen):
             services = service_handler.list(eServiceReference(bouquet_entry[0]))
             if services:
                 self.raw_services.extend(services.getContent("SN", True))
-                # SAFETY LIMIT: 1000 channels max to prevent toggle crash
-                if len(self.raw_services) > 1000: break
+                if len(self.raw_services) > 2000: break
 
         self["status_label"].setText(f"Scanning {len(self.raw_services)} channels...")
         self.process_timer.start(10, False)
@@ -481,7 +474,7 @@ class WhatToWatchScreen(Screen):
     def show_options_menu(self):
         disc_state = config.plugins.WhatToWatch.discovery_mode.value
         disc_text = "Disable Discovery" if disc_state else "Enable Discovery"
-        # Full Blue Menu
+        # UPDATED: Added Update Option
         menu = [("Set Reminder", "rem"), 
                 ("Pin/Unpin", "pin"), 
                 ("Clear Reminders", "clear"), 
@@ -489,7 +482,7 @@ class WhatToWatchScreen(Screen):
                 ("Toggle Source", "src"), 
                 ("Refresh", "refresh"), 
                 ("Sort", "sort"), 
-                ("Update Plugin", "upd"), 
+                ("Update Plugin", "upd"), # NEW
                 ("Settings", "ai")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
 
