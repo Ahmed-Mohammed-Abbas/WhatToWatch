@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.4 (Stylish Discovery UI)
+#  Version: 3.5 (Auto-Translate Discovery)
 #  Author: reali22
-#  Description: Modern, larger font UI for Discovery Mode pop-ups.
+#  Description: Discovery Mode pop-ups are now auto-translated to English.
 # ============================================================================
 
 import os
@@ -233,9 +233,7 @@ def translate_text(text, target_lang='en'):
 
 # --- DISCOVERY TOAST (Stylized) ---
 class DiscoveryToast(Screen):
-    # Top-Left corner popup (20,20) with modern look
-    # Background: #cc101520 (Semi-transparent dark blue/slate)
-    # Accent Bar: Green
+    # Top-Left corner popup (20,20)
     skin = """
         <screen position="20,20" size="450,110" title="Discovery" flags="wfNoBorder" backgroundColor="#40000000">
             <eLabel position="0,0" size="450,110" backgroundColor="#cc101520" zPosition="-1" />
@@ -343,7 +341,9 @@ class WTWMonitor:
                 cat = classify_enhanced(s_name, event_name)
                 
                 if cat == cat_name:
-                    found_item = (cat, s_name, event_name)
+                    # NEW: Translate before showing
+                    trans_name = translate_text(event_name)
+                    found_item = (cat, s_name, trans_name)
                     break
             except: continue
             
@@ -579,7 +579,6 @@ class WhatToWatchScreen(Screen):
         BATCH_SIZE = 10 
         epg_cache = eEPGCache.getInstance()
         query_time = int(time.time()) + self.time_offset
-        seen_channels = {f"{x['name']}_{x['sat']}" for x in self.full_list}
 
         for _ in range(BATCH_SIZE):
             if not self.raw_services: break
