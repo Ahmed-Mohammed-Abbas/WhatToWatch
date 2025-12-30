@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.5 (Auto-Translate Discovery)
+#  Version: 3.5 (Fix 0 Events & Optimization)
 #  Author: reali22
-#  Description: Discovery Mode pop-ups are now auto-translated to English.
+#  Description: Fixed main list showing 0 events. Discovery Mode translated & stylish.
 # ============================================================================
 
 import os
@@ -231,9 +231,8 @@ def translate_text(text, target_lang='en'):
     except: pass
     return text
 
-# --- DISCOVERY TOAST (Stylized) ---
+# --- DISCOVERY TOAST (Stylized & Translated) ---
 class DiscoveryToast(Screen):
-    # Top-Left corner popup (20,20)
     skin = """
         <screen position="20,20" size="450,110" title="Discovery" flags="wfNoBorder" backgroundColor="#40000000">
             <eLabel position="0,0" size="450,110" backgroundColor="#cc101520" zPosition="-1" />
@@ -341,7 +340,7 @@ class WTWMonitor:
                 cat = classify_enhanced(s_name, event_name)
                 
                 if cat == cat_name:
-                    # NEW: Translate before showing
+                    # Translate logic here for Discovery Mode
                     trans_name = translate_text(event_name)
                     found_item = (cat, s_name, trans_name)
                     break
@@ -541,11 +540,15 @@ class WhatToWatchScreen(Screen):
         self.process_timer = eTimer()
         self.process_timer.callback.append(self.process_batch)
         self.onLayoutFinish.append(self.start_full_rescan)
+        
+        # Initialize SEEN channels for de-duplication (FIX for 0 Events)
+        self.seen_channels = set()
 
     def start_full_rescan(self):
         self.process_timer.stop()
         self.full_list = []
         self.raw_services = []
+        self.seen_channels = set() # Reset safety set
         self.processed_count = 0
         self["event_list"].setList([])
         
@@ -587,9 +590,11 @@ class WhatToWatchScreen(Screen):
             
             try:
                 sat_pos = get_sat_position(s_ref)
+                
+                # De-duplication Logic (Corrected)
                 unique_id = f"{s_name}_{sat_pos}"
-                if unique_id in seen_channels: continue
-                seen_channels.add(unique_id)
+                if unique_id in self.seen_channels: continue
+                self.seen_channels.add(unique_id)
 
                 event = epg_cache.lookupEventTime(eServiceReference(s_ref), query_time)
                 if not event: continue
