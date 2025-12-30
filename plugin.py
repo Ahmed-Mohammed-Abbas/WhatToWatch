@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.5 (Advanced Discovery: Now, Next, Tonight)
+#  Version: 3.5 (Consistent Discovery Fix)
 #  Author: reali22
-#  Description: Discovery Mode rotates between Now, Next, and Primetime suggestions.
+#  Description: Fixed missed notifications. Logic loops until a valid event is found.
 # ============================================================================
 
 import os
@@ -231,13 +231,11 @@ def translate_text(text, target_lang='en'):
     except: pass
     return text
 
-# --- DISCOVERY TOAST (Advanced) ---
+# --- DISCOVERY TOAST (Dynamic) ---
 class DiscoveryToast(Screen):
-    # Dynamic Skin based on type
     def __init__(self, session, mode, category, channel_name, event_name, start_time=None):
         Screen.__init__(self, session)
         
-        # Color & Text Logic
         if mode == "now":
             accent_color = "#ff0000" # RED
             header_text = f"NOW SHOWING • {category}"
@@ -246,12 +244,12 @@ class DiscoveryToast(Screen):
             accent_color = "#00ff00" # GREEN
             t_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time else ""
             header_text = f"COMING NEXT • {t_str} • {category}"
-            title_color = "#aaffaa" # Light Green
+            title_color = "#aaffaa"
         elif mode == "tonight":
             accent_color = "#0080ff" # BLUE
             t_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time else ""
             header_text = f"TONIGHT • {t_str} • {category}"
-            title_color = "#aaddff" # Light Blue
+            title_color = "#aaddff"
             
         self.skin = f"""
             <screen position="20,20" size="450,110" title="Discovery" flags="wfNoBorder" backgroundColor="#40000000">
@@ -275,7 +273,7 @@ class DiscoveryToast(Screen):
         self.timer.callback.append(self.close)
         self.timer.start(10000, True)
 
-# --- TOP NOTIFICATION SCREEN (Reminders) ---
+# --- TOP NOTIFICATION SCREEN ---
 class WTWNotification(Screen):
     skin = """
         <screen position="center,30" size="1000,100" title="Reminder" flags="wfNoBorder" backgroundColor="#40000000">
@@ -295,14 +293,18 @@ class WTWNotification(Screen):
 class WTWMonitor:
     def __init__(self, session):
         self.session = session
+        
+        # Reminder Timer (Every 60s)
         self.timer = eTimer()
         self.timer.callback.append(self.check_reminders)
         self.timer.start(60000, False)
         
+        # Discovery Timer (Every 60s)
         self.discovery_timer = eTimer()
         self.discovery_timer.callback.append(self.discovery_tick)
         self.discovery_cat_idx = 0
         
+        # Build Cache Immediately
         self.scan_timer = eTimer()
         self.scan_timer.callback.append(self.build_cache)
         self.scan_timer.start(5000, True)
@@ -337,50 +339,66 @@ class WTWMonitor:
             self.build_cache()
             if not GLOBAL_SERVICE_LIST: return
 
-        # Rotate Category
-        cat_name = CATEGORIES_ORDER[self.discovery_cat_idx]
-        self.discovery_cat_idx = (self.discovery_cat_idx + 1) % len(CATEGORIES_ORDER)
-        
-        # Randomly choose Mode: Now, Next, or Tonight
-        mode_roll = random.randint(1, 10)
-        if mode_roll <= 5: mode = "now"
-        elif mode_roll <= 8: mode = "next"
-        else: mode = "tonight"
-        
         epg_cache = eEPGCache.getInstance()
         now = int(time.time())
         found_item = None
         
-        for _ in range(50):
-            try:
-                s_ref, s_name = random.choice(GLOBAL_SERVICE_LIST)
-                if "::" in s_ref: continue
-                
-                # Fetch Logic based on Mode
-                event = None
-                if mode == "now":
-                    event = epg_cache.lookupEventTime(eServiceReference(s_ref), now)
-                elif mode == "next":
-                    # Look for event starting in 30-90 mins
-                    event = epg_cache.lookupEventTime(eServiceReference(s_ref), now + 3600)
-                elif mode == "tonight":
-                    # Look for primetime (after 20:00 today)
-                    # Simple hack: check +4 to +8 hours
-                    event = epg_cache.lookupEventTime(eServiceReference(s_ref), now + 18000)
+        # Smart Loop: Try Categories until we find something
+        # Loop max twice through all categories to avoid infinite loop
+        attempts = 0
+        max_attempts = len(CATEGORIES_ORDER) * 2 
+        
+        while not found_item and attempts < max_attempts:
+            cat_name = CATEGORIES_ORDER[self.discovery_cat_idx]
+            self.discovery_cat_idx = (self.discovery_cat_idx + 1) % len(CATEGORIES_ORDER)
+            attempts += 1
+            
+            # Determine Logic Mode
+            # Simple Logic: 50% Now, 30% Next, 20% Tonight (if early)
+            roll = random.randint(1, 10)
+            hour = time.localtime(now).tm_hour
+            
+            mode = "now"
+            if roll > 8: 
+                # Tonight logic: Only if currently before 10 PM
+                if hour < 22: mode = "tonight"
+                else: mode = "next"
+            elif roll > 5:
+                mode = "next"
+            
+            # Try 30 random channels for this category
+            for _ in range(30):
+                try:
+                    s_ref, s_name = random.choice(GLOBAL_SERVICE_LIST)
+                    if "::" in s_ref: continue
+                    
+                    event = None
+                    if mode == "now":
+                        event = epg_cache.lookupEventTime(eServiceReference(s_ref), now)
+                    elif mode == "next":
+                        event = epg_cache.lookupEventTime(eServiceReference(s_ref), now + 3600)
+                    elif mode == "tonight":
+                        # Look approx 19:00 - 23:00 today
+                        # We just search forward 4 hours, simple heuristic
+                        event = epg_cache.lookupEventTime(eServiceReference(s_ref), now + 14400)
 
-                if not event: continue
-                
-                event_name = event.getEventName()
-                if not event_name: continue
-                
-                # Verify category
-                cat = classify_enhanced(s_name, event_name)
-                if cat == cat_name:
-                    trans_name = translate_text(event_name)
-                    start_t = event.getBeginTime()
-                    found_item = (mode, cat, s_name, trans_name, start_t)
-                    break
-            except: continue
+                    if not event: continue
+                    
+                    event_name = event.getEventName()
+                    if not event_name: continue
+                    
+                    cat = classify_enhanced(s_name, event_name)
+                    
+                    # Match?
+                    if cat == cat_name:
+                        trans_name = translate_text(event_name)
+                        start_t = event.getBeginTime()
+                        found_item = (mode, cat, s_name, trans_name, start_t)
+                        break
+                except: continue
+            
+            # If we found an item, break the main while loop
+            if found_item: break
             
         if found_item:
             self.session.open(DiscoveryToast, found_item[0], found_item[1], found_item[2], found_item[3], found_item[4])
