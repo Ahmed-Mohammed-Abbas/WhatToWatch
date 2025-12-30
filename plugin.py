@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.5 (Smart Sorting - LyngSat Edition)
+#  Version: 3.5 (Kids Sorting Fix & Glass UI)
 #  Author: reali22
-#  Description: Fixed CCTV/Religious, CN/Series, and BBC sorting errors.
+#  Description: Fixed teleTOON/TVP ABC sorting. Updated Pop-up to Glass Slate style.
 # ============================================================================
 
 import os
@@ -58,18 +58,16 @@ PICON_PATHS = [
     "/usr/share/enigma2/picon_50x30/"
 ]
 
-# --- SMART CATEGORY DATABASE (v10.2) ---
-# REORDERED: Kids & Sports must be checked BEFORE Series/Movies/News to prevent overwrites.
+# --- CATEGORY DATABASE ---
 CATEGORIES_ORDER = ["Kids", "Sports", "Religious", "Documentary", "Music", "News", "Movies", "Series"]
 
 CATEGORIES = {
     "Kids": (
-        # Removed generic "series" keywords to avoid conflict
-        # Added specific LyngSat channel names
+        # Added: teletoon, tvp abc, minimini
         ["cartoon network", "cn arabia", "cn english", "cn hd", "nickelodeon", "nick", "disney", "boomerang", 
          "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "baraem", 
          "jeem", "ajyal", "cbeebies", "fix & foxi", "jimjam", "semsem", "toggolino", "super rtl", "koko", 
-         "toverland", "duck tv", "cartoonito"], 
+         "toverland", "duck tv", "cartoonito", "teletoon", "tvp abc", "minimini", "top kids", "junior"], 
         ["animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "princess", "lego", "toon", "kids"]
     ),
     "Sports": (
@@ -82,18 +80,16 @@ CATEGORIES = {
          "derby", "racing", "grand prix", "tournament", "live", "olymp"]
     ),
     "Religious": (
-        # REMOVED "ctv" (clashes with CCTV). Added specific religious channel names.
         ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv coptic", "mesat", "aghapy", 
          "noursat", "god tv", "ewtn", "peace tv", "huda", "al nas", "al rahama", "al insan", "karbala", 
          "al kafeel", "al maaref", "al kawthar", "safb", "al majarrah", "al nadah", "al fath"], 
         ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh", "church", "khutbah"]
     ),
     "Documentary": (
-        # Added Lifestyle channels here as they fit better than News
         ["discovery", "doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", 
          "tlc", "quest", "arte", "geographic", "explorer", "viasat", "iasat history", "iasat nature", "ad nat geo", 
          "oman cultural", "al jazeera doc", "dw doc", "bbc earth", "bbc lifestyle", "fatafeat", "travel", "food", 
-         "hgtv", "dtx", "id"], 
+         "hgtv", "dtx", "id", "planete"], 
         ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari", "space"]
     ),
     "Music": (
@@ -102,7 +98,6 @@ CATEGORIES = {
         ["concert", "videoclip", "hits", "playlist", "songs", "top 10", "top 20"]
     ),
     "News": (
-        # REMOVED generic "bbc" to stop grabbing BBC Ent/Brit.
         ["news", "cnn", "bbc news", "bbc world", "bbc arabic", "jazeera", "alarabiya", "skynews", "cnbc", "bloomberg", 
          "weather", "rt ", "france 24", "trt", "dw", "al hadath", "al hurra", "al sharqiya", "al sumaria", 
          "rudaw", "kurdistan", "news 24", "al ekhbariya", "al araby", "alghad", "i24", "euronews"], 
@@ -112,11 +107,10 @@ CATEGORIES = {
         ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "mbc 2", "mbc max", "mbc action", "mbc bollywood",
          "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", 
          "tcm", "star movies", "dubai one", "mpc", "art aflam", "lbc movies", "top movies", "scare", "imagine", 
-         "c1 action", "c1", "fx", "mgm", "action", "thriller"], 
+         "c1 action", "c1", "fx", "mgm", "action", "thriller", "warner"], 
         ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "movie"]
     ),
     "Series": (
-        # Added BBC Brit, First, and general Entertainment channels
         ["drama", "series", "serial", "novela", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", 
          "rotana drama", "zee alwan", "zee tv", "colors", "sony", "fox", "axn", "tlc", "lbc", "mtv lebanon", 
          "al jadeed", "syria drama", "amman", "roya", "dmc", "cbc", "osn series", "netflix", "al hayah", 
@@ -204,21 +198,14 @@ def classify_enhanced(channel_name, event_name):
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
     if "xxx" in ch_clean or "18+" in ch_clean: return None
-    
-    # Priority Order (Defined in CATEGORIES_ORDER)
     for cat in CATEGORIES_ORDER:
         ch_kws, evt_kws = CATEGORIES.get(cat, ([], []))
-        
-        # 1. Strict Channel Check
         for kw in ch_kws:
             if kw in ch_clean: return cat
-            
-    # 2. Secondary Event Check (Only if no channel match)
     for cat in CATEGORIES_ORDER:
         ch_kws, evt_kws = CATEGORIES.get(cat, ([], []))
         for kw in evt_kws:
             if kw in evt_clean: return cat
-            
     return "General"
 
 def get_sat_position(ref_str):
@@ -247,7 +234,7 @@ def translate_text(text, target_lang='en'):
     except: pass
     return text
 
-# --- DISCOVERY TOAST (Dynamic) ---
+# --- DISCOVERY TOAST (Glass Slate Style) ---
 class DiscoveryToast(Screen):
     def __init__(self, session, mode, category, channel_name, event_name, start_time=None):
         Screen.__init__(self, session)
@@ -267,13 +254,14 @@ class DiscoveryToast(Screen):
             header_text = f"TONIGHT • {t_str} • {category}"
             title_color = "#aaddff"
             
+        # UI: Dark Slate Glass (#aa101520 - More transparency for modern feel)
         self.skin = f"""
             <screen position="20,20" size="450,110" title="Discovery" flags="wfNoBorder" backgroundColor="#40000000">
-                <eLabel position="0,0" size="450,110" backgroundColor="#cc101520" zPosition="-1" />
+                <eLabel position="0,0" size="450,110" backgroundColor="#aa101520" zPosition="-1" />
                 <eLabel position="0,0" size="8,110" backgroundColor="{accent_color}" zPosition="1" />
-                <widget name="header" position="20,8" size="420,25" font="Regular;20" halign="left" foregroundColor="#a0a0a0" backgroundColor="#cc101520" transparent="1" />
-                <widget name="channel" position="20,35" size="420,35" font="Regular;30" halign="left" foregroundColor="{title_color}" backgroundColor="#cc101520" transparent="1" />
-                <widget name="event" position="20,72" size="420,30" font="Regular;22" halign="left" foregroundColor="#ffffff" backgroundColor="#cc101520" transparent="1" />
+                <widget name="header" position="20,8" size="420,25" font="Regular;20" halign="left" foregroundColor="#a0a0a0" backgroundColor="#aa101520" transparent="1" />
+                <widget name="channel" position="20,35" size="420,35" font="Regular;30" halign="left" foregroundColor="{title_color}" backgroundColor="#aa101520" transparent="1" />
+                <widget name="event" position="20,72" size="420,30" font="Regular;22" halign="left" foregroundColor="#ffffff" backgroundColor="#aa101520" transparent="1" />
             </screen>
         """
         
