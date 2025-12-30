@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.4 (Smart Sorting & Expanded Database)
+#  Version: 3.4 (Sorting Fix & De-Duplication)
 #  Author: reali22
-#  Description: Major update to categorization logic and channel database.
+#  Description: Fixed Discovery/Sport mix-up. Removed duplicate channels.
 # ============================================================================
 
 import os
@@ -56,15 +56,23 @@ PICON_PATHS = [
     "/usr/share/enigma2/picon_50x30/"
 ]
 
-# --- SMART CATEGORY DATABASE (v9.0 Expanded) ---
+# --- REFINED CATEGORY DATABASE (v9.1) ---
+# Ordered dictionary to prioritize matches (e.g. Doc first to catch Discovery before Sport)
+CATEGORIES_ORDER = ["Documentary", "Sports", "Movies", "Series", "Kids", "News", "Religious", "Music"]
+
 CATEGORIES = {
+    "Documentary": (
+        ["discovery", "doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", 
+         "tlc", "quest", "arte", "geographic", "explorer", "viasat", "iasat history", "iasat nature", "ad nat geo", 
+         "oman cultural", "al jazeera doc", "dw doc"], 
+        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari", "space"]
+    ),
     "Sports": (
-        # Channel Keywords
         ["sport", "soccer", "football", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", "on sport", 
          "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", 
          "canal+ sport", "eleven", "polsat sport", "ad sport", "dubai sport", "sharjah sport", "ksa sport", 
-         "kuwait sport", "iraq sport", "oman sport", "bahrain sport", "yass", "al ahly", "zamalek"], 
-        # Event Keywords
+         "kuwait sport", "iraq sport", "oman sport", "bahrain sport", "yass", "al ahly", "zamalek", 
+         "ss-1", "ss-2", "ss-3", "ss-4", "fightbox", "setanta", "match!", "espn"], 
         ["match", "vs", "league", "cup", "final", "premier", "bundesliga", "laliga", "serie a", "champion", 
          "derby", "racing", "grand prix", "tournament", "live", "olymp"]
     ),
@@ -93,12 +101,6 @@ CATEGORIES = {
          "trt", "dw", "al hadath", "al hurra", "al sharqiya", "al sumaria", "rudaw", "kurdistan", "news 24", 
          "al ekhbariya", "al araby", "alghad"], 
         ["journal", "report", "briefing", "update", "headline", "breaking", "bulletin", "politics"]
-    ),
-    "Documentary": (
-        ["doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", 
-         "tlc", "quest", "arte", "geographic", "explorer", "viasat", "iasat history", "iasat nature", "ad nat geo", 
-         "oman cultural", "al jazeera doc"], 
-        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari", "space"]
     ),
     "Religious": (
         ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", 
@@ -192,13 +194,17 @@ def classify_enhanced(channel_name, event_name):
     evt_clean = event_name.lower() if event_name else ""
     if "xxx" in ch_clean or "18+" in ch_clean: return None
     
-    # Priority Check: Channel Name
-    for cat, (ch_kws, _) in CATEGORIES.items():
+    # Priority Order (Doc > Sport > Movie...)
+    for cat in CATEGORIES_ORDER:
+        ch_kws, evt_kws = CATEGORIES.get(cat, ([], []))
+        
+        # Check Channel Name First
         for kw in ch_kws:
             if kw in ch_clean: return cat
             
     # Secondary Check: Event Name
-    for cat, (_, evt_kws) in CATEGORIES.items():
+    for cat in CATEGORIES_ORDER:
+        ch_kws, evt_kws = CATEGORIES.get(cat, ([], []))
         for kw in evt_kws:
             if kw in evt_clean: return cat
             
@@ -475,6 +481,9 @@ class WhatToWatchScreen(Screen):
         BATCH_SIZE = 10 
         epg_cache = eEPGCache.getInstance()
         query_time = int(time.time()) + self.time_offset
+        
+        # New: Tracking seen channels to prevent duplicates
+        seen_channels = {f"{x['name']}_{x['sat']}" for x in self.full_list}
 
         for _ in range(BATCH_SIZE):
             if not self.raw_services: break
@@ -482,6 +491,12 @@ class WhatToWatchScreen(Screen):
             if "::" in s_ref: continue
             
             try:
+                # Deduplication Check
+                sat_pos = get_sat_position(s_ref)
+                unique_id = f"{s_name}_{sat_pos}"
+                if unique_id in seen_channels: continue
+                seen_channels.add(unique_id)
+
                 event = epg_cache.lookupEventTime(eServiceReference(s_ref), query_time)
                 if not event: continue
                 event_name = event.getEventName()
@@ -489,7 +504,7 @@ class WhatToWatchScreen(Screen):
                 if not category: continue 
 
                 entry_data = {
-                    "cat": category, "name": s_name, "sat": get_sat_position(s_ref), "evt": event_name, 
+                    "cat": category, "name": s_name, "sat": sat_pos, "evt": event_name, 
                     "ref": s_ref, "nib": 0, "start": event.getBeginTime(), "dur": event.getDuration()
                 }
                 self.full_list.append(entry_data)
