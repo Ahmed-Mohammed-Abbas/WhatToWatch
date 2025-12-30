@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.5 (Always-On Discovery)
+#  Version: 3.4 (Stylish Discovery UI)
 #  Author: reali22
-#  Description: Discovery Mode runs in background (even when closed).
+#  Description: Modern, larger font UI for Discovery Mode pop-ups.
 # ============================================================================
 
 import os
@@ -120,7 +120,6 @@ CATEGORIES = {
 PICON_CACHE = {}
 PINNED_CHANNELS = []
 WATCHLIST = []
-# NEW: Global Cache for Background Monitor
 GLOBAL_SERVICE_LIST = []
 
 def load_data():
@@ -232,20 +231,28 @@ def translate_text(text, target_lang='en'):
     except: pass
     return text
 
-# --- DISCOVERY TOAST (Dismissible) ---
+# --- DISCOVERY TOAST (Stylized) ---
 class DiscoveryToast(Screen):
+    # Top-Left corner popup (20,20) with modern look
+    # Background: #cc101520 (Semi-transparent dark blue/slate)
+    # Accent Bar: Green
     skin = """
-        <screen position="10,10" size="400,120" title="Discovery" flags="wfNoBorder" backgroundColor="#40000000">
-            <eLabel position="0,0" size="400,120" backgroundColor="#20101010" zPosition="-1" />
-            <widget name="header" position="10,5" size="380,30" font="Regular;22" halign="left" foregroundColor="#00ff00" backgroundColor="#20101010" transparent="1" />
-            <widget name="channel" position="10,40" size="380,30" font="Regular;24" halign="left" foregroundColor="#ffffff" backgroundColor="#20101010" transparent="1" />
-            <widget name="event" position="10,75" size="380,40" font="Regular;20" halign="left" foregroundColor="#a0a0a0" backgroundColor="#20101010" transparent="1" />
+        <screen position="20,20" size="450,110" title="Discovery" flags="wfNoBorder" backgroundColor="#40000000">
+            <eLabel position="0,0" size="450,110" backgroundColor="#cc101520" zPosition="-1" />
+            
+            <eLabel position="0,0" size="8,110" backgroundColor="#00ff00" zPosition="1" />
+            
+            <widget name="header" position="20,8" size="420,25" font="Regular;20" halign="left" foregroundColor="#a0a0a0" backgroundColor="#cc101520" transparent="1" />
+            
+            <widget name="channel" position="20,35" size="420,35" font="Regular;30" halign="left" foregroundColor="#ffcc00" backgroundColor="#cc101520" transparent="1" />
+            
+            <widget name="event" position="20,72" size="420,30" font="Regular;22" halign="left" foregroundColor="#ffffff" backgroundColor="#cc101520" transparent="1" />
         </screen>
     """
     
     def __init__(self, session, category, channel_name, event_name):
         Screen.__init__(self, session)
-        self["header"] = Label(f"Now Showing: {category}")
+        self["header"] = Label(f"{category} • Now Showing")
         self["channel"] = Label(channel_name)
         self["event"] = Label(event_name)
         
@@ -274,31 +281,26 @@ class WTWNotification(Screen):
         self.timer.callback.append(self.close)
         self.timer.start(timeout * 1000, True)
 
-# --- BACKGROUND MONITOR (Updated with Discovery Logic) ---
+# --- BACKGROUND MONITOR ---
 class WTWMonitor:
     def __init__(self, session):
         self.session = session
-        
-        # 1. Reminder Timer
         self.timer = eTimer()
         self.timer.callback.append(self.check_reminders)
         self.timer.start(60000, False)
         
-        # 2. Discovery Timer (Runs even if plugin is closed)
         self.discovery_timer = eTimer()
         self.discovery_timer.callback.append(self.discovery_tick)
         self.discovery_cat_idx = 0
         
-        # Start scanning services for cache in background
         self.scan_timer = eTimer()
         self.scan_timer.callback.append(self.build_cache)
-        self.scan_timer.start(5000, True) # Start building cache 5s after boot
+        self.scan_timer.start(5000, True)
 
         if config.plugins.WhatToWatch.discovery_mode.value:
             self.discovery_timer.start(60000, False)
 
     def build_cache(self):
-        # Fetch all services once to populate GLOBAL_SERVICE_LIST
         global GLOBAL_SERVICE_LIST
         service_handler = eServiceCenter.getInstance()
         ref_str = '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "bouquets.tv" ORDER BY bouquet'
@@ -314,7 +316,7 @@ class WTWMonitor:
             services = service_handler.list(eServiceReference(bouquet_entry[0]))
             if services:
                 temp_list.extend(services.getContent("SN", True))
-                if len(temp_list) > 2000: break # Limit to avoid memory issues
+                if len(temp_list) > 2000: break
         
         GLOBAL_SERVICE_LIST = temp_list
 
@@ -322,16 +324,13 @@ class WTWMonitor:
         if not config.plugins.WhatToWatch.discovery_mode.value: return
         if not GLOBAL_SERVICE_LIST: return
 
-        # Rotate Category
         cat_name = CATEGORIES_ORDER[self.discovery_cat_idx]
         self.discovery_cat_idx = (self.discovery_cat_idx + 1) % len(CATEGORIES_ORDER)
         
-        # Optimization: Don't scan everything. Pick random samples.
         epg_cache = eEPGCache.getInstance()
         now = int(time.time())
         found_item = None
         
-        # Try 50 random channels to find a match for the current category
         for _ in range(50):
             s_ref, s_name = random.choice(GLOBAL_SERVICE_LIST)
             if "::" in s_ref: continue
@@ -466,7 +465,6 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
         for x in self["config"].list: x[1].save()
         config.plugins.WhatToWatch.save()
         
-        # Sync Global Monitor with new settings
         if monitor:
             if config.plugins.WhatToWatch.discovery_mode.value:
                 monitor.discovery_timer.start(60000, False)
