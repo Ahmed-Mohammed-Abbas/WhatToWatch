@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 4.0 (Stability & Anti-Crash)
+#  Version: 4.0 (Safe-Mode Loading)
 #  Author: reali22
-#  Description: Memory optimizations, Safer scanning, Favorites default.
+#  Description: Fixes startup crash by using delayed, bouquet-by-bouquet scanning.
 # ============================================================================
 
 import os
@@ -113,22 +113,23 @@ def toggle_pin(ref):
     return res
 
 def get_picon_resized(service_ref, channel_name):
-    ref_clean = service_ref.strip().replace(":", "_").rstrip("_")
-    if ref_clean in PICON_CACHE: return PICON_CACHE[ref_clean]
-    
-    found_path = None
-    candidates = [ref_clean + ".png", ref_clean.replace("1_0_19", "1_0_1") + ".png", channel_name.strip() + ".png"]
-    for path in PICON_PATHS:
-        if os.path.exists(path):
-            for name in candidates:
-                full_path = os.path.join(path, name)
-                if os.path.exists(full_path):
-                    found_path = full_path
-                    break
-        if found_path: break
-    
-    if found_path:
-        try:
+    try:
+        ref_clean = service_ref.strip().replace(":", "_").rstrip("_")
+        if ref_clean in PICON_CACHE: return PICON_CACHE[ref_clean]
+        
+        found_path = None
+        # Optimization: Check fewer paths to avoid lag
+        candidates = [ref_clean + ".png", channel_name.strip() + ".png"]
+        for path in PICON_PATHS:
+            if os.path.exists(path):
+                for name in candidates:
+                    full_path = os.path.join(path, name)
+                    if os.path.exists(full_path):
+                        found_path = full_path
+                        break
+            if found_path: break
+        
+        if found_path:
             sc = ePicLoad()
             sc.setPara((50, 30, 1, 1, False, 1, "#00000000"))
             if sc.startDecode(found_path, 0, 0, False) == 0:
@@ -136,7 +137,7 @@ def get_picon_resized(service_ref, channel_name):
                 if ptr:
                     PICON_CACHE[ref_clean] = ptr
                     return ptr
-        except: pass
+    except: pass
     
     PICON_CACHE[ref_clean] = None 
     return None
@@ -187,7 +188,7 @@ def translate_text(text, target_lang='en'):
         if not text: return ""
         encoded = quote(text)
         url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={encoded}"
-        cmd = f"curl -k -s --max-time 2 -A 'Mozilla/5.0' '{url}' > /tmp/wtw_trans.json"
+        cmd = f"curl -k -s --max-time 1 -A 'Mozilla/5.0' '{url}' > /tmp/wtw_trans.json"
         os.system(cmd)
         if os.path.exists("/tmp/wtw_trans.json"):
             with open("/tmp/wtw_trans.json", "r") as f:
@@ -348,13 +349,23 @@ class WhatToWatchScreen(Screen):
         self.processed_count = 0
         self.current_filter = None
         self.current_sat_filter = None
-        self.use_favorites = True # Changed Default to True (Safer)
+        self.use_favorites = True # Safer Default
         self.sort_mode = 'category'
         self.time_offset = 0
         self.process_timer = eTimer()
         self.process_timer.callback.append(self.process_batch)
-        self.onLayoutFinish.append(self.start_full_rescan)
+        self.onLayoutFinish.append(self.delayed_start) # Changed from direct call
         self.seen_channels = set()
+        
+        # New Bouquet Loader
+        self.bouquet_list = []
+        self.current_bouquet_idx = 0
+
+    def delayed_start(self):
+        # 500ms delay to let the screen render before heavy work
+        self.init_timer = eTimer()
+        self.init_timer.callback.append(self.start_full_rescan)
+        self.init_timer.start(500, True)
 
     def start_full_rescan(self):
         self.process_timer.stop()
@@ -362,6 +373,8 @@ class WhatToWatchScreen(Screen):
         self.raw_services = []
         self.seen_channels = set()
         self.processed_count = 0
+        self.bouquet_list = []
+        self.current_bouquet_idx = 0
         self["event_list"].setList([])
         
         time_text = "Now" if self.time_offset == 0 else f"+{self.time_offset//3600}h"
@@ -370,30 +383,41 @@ class WhatToWatchScreen(Screen):
         service_handler = eServiceCenter.getInstance()
         ref_str = '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "userbouquet.favourites.tv" ORDER BY bouquet' if self.use_favorites else '1:7:1:0:0:0:0:0:0:0:FROM BOUQUET "bouquets.tv" ORDER BY bouquet'
         bouquet_root = eServiceReference(ref_str)
-        bouquet_list = service_handler.list(bouquet_root)
-        if not bouquet_list: return
-
-        bouquet_content = bouquet_list.getContent("SN", True)
-        if not bouquet_content: return
-
-        for bouquet_entry in bouquet_content:
-            services = service_handler.list(eServiceReference(bouquet_entry[0]))
-            if services:
-                self.raw_services.extend(services.getContent("SN", True))
-                # SAFETY LIMIT: Stop at 1200 channels to prevent crash
-                if len(self.raw_services) > 1200: break
-
-        self["status_label"].setText(f"Scanning {len(self.raw_services)} channels...")
-        self.process_timer.start(10, False)
+        bouquets = service_handler.list(bouquet_root)
+        
+        if bouquets:
+            self.bouquet_list = bouquets.getContent("SN", True)
+        
+        if self.bouquet_list:
+            self.process_timer.start(50, False) # Start the batch loop
+        else:
+            self["status_label"].setText("No channels found.")
 
     def process_batch(self):
+        # 1. Fill Raw Services from ONE Bouquet per tick (Memory Safe)
+        service_handler = eServiceCenter.getInstance()
+        
+        # Keep filling raw_services until we have enough to process or run out of bouquets
+        while len(self.raw_services) < 20 and self.current_bouquet_idx < len(self.bouquet_list):
+            # Limit total channels to 800 to prevent crash on old boxes
+            if len(self.full_list) + len(self.raw_services) > 800:
+                self.bouquet_list = [] # Stop fetching
+                break
+                
+            bouquet = self.bouquet_list[self.current_bouquet_idx]
+            self.current_bouquet_idx += 1
+            services = service_handler.list(eServiceReference(bouquet[0]))
+            if services:
+                self.raw_services.extend(services.getContent("SN", True))
+
+        # 2. Process EPG for the small batch
         if not self.raw_services:
             self.process_timer.stop()
             self["status_label"].setText(f"Done. {len(self.full_list)} events found.")
-            self.rebuild_visual_list() # Ensure final list is drawn
+            self.rebuild_visual_list()
             return
 
-        BATCH_SIZE = 10 
+        BATCH_SIZE = 5 # Reduced from 10 to 5 for safety
         epg_cache = eEPGCache.getInstance()
         query_time = int(time.time()) + self.time_offset
 
@@ -422,8 +446,7 @@ class WhatToWatchScreen(Screen):
             except: continue
 
         self.processed_count += BATCH_SIZE
-        # Optimized: Update UI less frequently (every 100 items) to prevent lagging
-        if self.processed_count % 100 == 0: self.rebuild_visual_list()
+        if self.processed_count % 50 == 0: self.rebuild_visual_list()
 
     def rebuild_visual_list(self):
         if self.current_sat_filter == "watchlist":
