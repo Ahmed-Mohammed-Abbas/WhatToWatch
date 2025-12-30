@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.5 (Consistent Discovery Fix)
+#  Version: 3.5 (Smart Sorting - LyngSat Edition)
 #  Author: reali22
-#  Description: Fixed missed notifications. Logic loops until a valid event is found.
+#  Description: Fixed CCTV/Religious, CN/Series, and BBC sorting errors.
 # ============================================================================
 
 import os
@@ -58,61 +58,70 @@ PICON_PATHS = [
     "/usr/share/enigma2/picon_50x30/"
 ]
 
-# --- CATEGORY DATABASE ---
-CATEGORIES_ORDER = ["Documentary", "Sports", "Movies", "Series", "Kids", "News", "Religious", "Music"]
+# --- SMART CATEGORY DATABASE (v10.2) ---
+# REORDERED: Kids & Sports must be checked BEFORE Series/Movies/News to prevent overwrites.
+CATEGORIES_ORDER = ["Kids", "Sports", "Religious", "Documentary", "Music", "News", "Movies", "Series"]
 
 CATEGORIES = {
-    "Documentary": (
-        ["discovery", "doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", 
-         "tlc", "quest", "arte", "geographic", "explorer", "viasat", "iasat history", "iasat nature", "ad nat geo", 
-         "oman cultural", "al jazeera doc", "dw doc"], 
-        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari", "space"]
+    "Kids": (
+        # Removed generic "series" keywords to avoid conflict
+        # Added specific LyngSat channel names
+        ["cartoon network", "cn arabia", "cn english", "cn hd", "nickelodeon", "nick", "disney", "boomerang", 
+         "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "baraem", 
+         "jeem", "ajyal", "cbeebies", "fix & foxi", "jimjam", "semsem", "toggolino", "super rtl", "koko", 
+         "toverland", "duck tv", "cartoonito"], 
+        ["animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "princess", "lego", "toon", "kids"]
     ),
     "Sports": (
         ["sport", "soccer", "football", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", "on sport", 
          "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", 
          "canal+ sport", "eleven", "polsat sport", "ad sport", "dubai sport", "sharjah sport", "ksa sport", 
          "kuwait sport", "iraq sport", "oman sport", "bahrain sport", "yass", "al ahly", "zamalek", 
-         "ss-1", "ss-2", "ss-3", "ss-4", "fightbox", "setanta", "match!", "espn"], 
+         "ss-1", "ss-2", "ss-3", "ss-4", "fightbox", "setanta", "match!", "espn", "motorvision", "extreme"], 
         ["match", "vs", "league", "cup", "final", "premier", "bundesliga", "laliga", "serie a", "champion", 
          "derby", "racing", "grand prix", "tournament", "live", "olymp"]
     ),
-    "Movies": (
-        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "mbc 2", "mbc max", "mbc action", 
-         "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", 
-         "tcm", "star movies", "dubai one", "mpc", "art aflam", "lbc movies", "top movies", "scare", "imagine", 
-         "c1 action", "c1", "fx", "mgm"], 
-        ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "movie"]
-    ),
-    "Series": (
-        ["drama", "series", "serial", "novela", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", 
-         "rotana drama", "zee alwan", "zee tv", "colors", "sony", "fox", "axn", "tlc", "lbc", "mtv lebanon", 
-         "al jadeed", "syria drama", "amman", "roya", "dmc", "cbc", "osn series", "netflix", "al hayah", "panorama drama", 
-         "beta", "sama", "lan", "usv"], 
-        ["episode", "season", "series", "soap", "telenovela", "sitcom"]
-    ),
-    "Kids": (
-        ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", 
-         "baby", "kika", "gulli", "clan", "baraem", "jeem", "ajyal", "cbeebies", "fix & foxi", "jimjam", "semsem", 
-         "toggolino", "super rtl", "koko"], 
-        ["animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "princess", "lego", "toon"]
-    ),
-    "News": (
-        ["news", "cnn", "bbc", "jazeera", "alarabiya", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", 
-         "trt", "dw", "al hadath", "al hurra", "al sharqiya", "al sumaria", "rudaw", "kurdistan", "news 24", 
-         "al ekhbariya", "al araby", "alghad"], 
-        ["journal", "report", "briefing", "update", "headline", "breaking", "bulletin", "politics"]
-    ),
     "Religious": (
-        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", 
-         "ewtn", "peace tv", "huda", "al nas", "al rahama", "al insan", "karbala", "al kafeel", "al maaref", 
-         "al kawthar", "safb"], 
+        # REMOVED "ctv" (clashes with CCTV). Added specific religious channel names.
+        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv coptic", "mesat", "aghapy", 
+         "noursat", "god tv", "ewtn", "peace tv", "huda", "al nas", "al rahama", "al insan", "karbala", 
+         "al kafeel", "al maaref", "al kawthar", "safb", "al majarrah", "al nadah", "al fath"], 
         ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh", "church", "khutbah"]
+    ),
+    "Documentary": (
+        # Added Lifestyle channels here as they fit better than News
+        ["discovery", "doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", 
+         "tlc", "quest", "arte", "geographic", "explorer", "viasat", "iasat history", "iasat nature", "ad nat geo", 
+         "oman cultural", "al jazeera doc", "dw doc", "bbc earth", "bbc lifestyle", "fatafeat", "travel", "food", 
+         "hgtv", "dtx", "id"], 
+        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari", "space"]
     ),
     "Music": (
         ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", 
-         "kiss", "dance", "hits", "arabica", "mezzo", "trace", "box hits", "kerrang"], 
+         "kiss", "dance", "hits", "arabica", "mezzo", "trace", "box hits", "kerrang", "magic", "nrj"], 
         ["concert", "videoclip", "hits", "playlist", "songs", "top 10", "top 20"]
+    ),
+    "News": (
+        # REMOVED generic "bbc" to stop grabbing BBC Ent/Brit.
+        ["news", "cnn", "bbc news", "bbc world", "bbc arabic", "jazeera", "alarabiya", "skynews", "cnbc", "bloomberg", 
+         "weather", "rt ", "france 24", "trt", "dw", "al hadath", "al hurra", "al sharqiya", "al sumaria", 
+         "rudaw", "kurdistan", "news 24", "al ekhbariya", "al araby", "alghad", "i24", "euronews"], 
+        ["journal", "report", "briefing", "update", "headline", "breaking", "bulletin", "politics"]
+    ),
+    "Movies": (
+        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "mbc 2", "mbc max", "mbc action", "mbc bollywood",
+         "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", 
+         "tcm", "star movies", "dubai one", "mpc", "art aflam", "lbc movies", "top movies", "scare", "imagine", 
+         "c1 action", "c1", "fx", "mgm", "action", "thriller"], 
+        ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "movie"]
+    ),
+    "Series": (
+        # Added BBC Brit, First, and general Entertainment channels
+        ["drama", "series", "serial", "novela", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", 
+         "rotana drama", "zee alwan", "zee tv", "colors", "sony", "fox", "axn", "tlc", "lbc", "mtv lebanon", 
+         "al jadeed", "syria drama", "amman", "roya", "dmc", "cbc", "osn series", "netflix", "al hayah", 
+         "panorama drama", "beta", "sama", "lan", "usv", "bbc brit", "bbc first", "itv", "dizi", "ana", "ent"], 
+        ["episode", "season", "series", "soap", "telenovela", "sitcom"]
     )
 }
 
@@ -195,14 +204,21 @@ def classify_enhanced(channel_name, event_name):
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
     if "xxx" in ch_clean or "18+" in ch_clean: return None
+    
+    # Priority Order (Defined in CATEGORIES_ORDER)
     for cat in CATEGORIES_ORDER:
         ch_kws, evt_kws = CATEGORIES.get(cat, ([], []))
+        
+        # 1. Strict Channel Check
         for kw in ch_kws:
             if kw in ch_clean: return cat
+            
+    # 2. Secondary Event Check (Only if no channel match)
     for cat in CATEGORIES_ORDER:
         ch_kws, evt_kws = CATEGORIES.get(cat, ([], []))
         for kw in evt_kws:
             if kw in evt_clean: return cat
+            
     return "General"
 
 def get_sat_position(ref_str):
@@ -294,17 +310,14 @@ class WTWMonitor:
     def __init__(self, session):
         self.session = session
         
-        # Reminder Timer (Every 60s)
         self.timer = eTimer()
         self.timer.callback.append(self.check_reminders)
         self.timer.start(60000, False)
         
-        # Discovery Timer (Every 60s)
         self.discovery_timer = eTimer()
         self.discovery_timer.callback.append(self.discovery_tick)
         self.discovery_cat_idx = 0
         
-        # Build Cache Immediately
         self.scan_timer = eTimer()
         self.scan_timer.callback.append(self.build_cache)
         self.scan_timer.start(5000, True)
@@ -334,8 +347,7 @@ class WTWMonitor:
 
     def discovery_tick(self):
         if not config.plugins.WhatToWatch.discovery_mode.value: return
-        
-        if not GLOBAL_SERVICE_LIST:
+        if not GLOBAL_SERVICE_LIST: 
             self.build_cache()
             if not GLOBAL_SERVICE_LIST: return
 
@@ -343,8 +355,6 @@ class WTWMonitor:
         now = int(time.time())
         found_item = None
         
-        # Smart Loop: Try Categories until we find something
-        # Loop max twice through all categories to avoid infinite loop
         attempts = 0
         max_attempts = len(CATEGORIES_ORDER) * 2 
         
@@ -353,20 +363,16 @@ class WTWMonitor:
             self.discovery_cat_idx = (self.discovery_cat_idx + 1) % len(CATEGORIES_ORDER)
             attempts += 1
             
-            # Determine Logic Mode
-            # Simple Logic: 50% Now, 30% Next, 20% Tonight (if early)
             roll = random.randint(1, 10)
             hour = time.localtime(now).tm_hour
             
             mode = "now"
             if roll > 8: 
-                # Tonight logic: Only if currently before 10 PM
                 if hour < 22: mode = "tonight"
                 else: mode = "next"
             elif roll > 5:
                 mode = "next"
             
-            # Try 30 random channels for this category
             for _ in range(30):
                 try:
                     s_ref, s_name = random.choice(GLOBAL_SERVICE_LIST)
@@ -378,18 +384,13 @@ class WTWMonitor:
                     elif mode == "next":
                         event = epg_cache.lookupEventTime(eServiceReference(s_ref), now + 3600)
                     elif mode == "tonight":
-                        # Look approx 19:00 - 23:00 today
-                        # We just search forward 4 hours, simple heuristic
                         event = epg_cache.lookupEventTime(eServiceReference(s_ref), now + 14400)
 
                     if not event: continue
-                    
                     event_name = event.getEventName()
                     if not event_name: continue
                     
                     cat = classify_enhanced(s_name, event_name)
-                    
-                    # Match?
                     if cat == cat_name:
                         trans_name = translate_text(event_name)
                         start_t = event.getBeginTime()
@@ -397,7 +398,6 @@ class WTWMonitor:
                         break
                 except: continue
             
-            # If we found an item, break the main while loop
             if found_item: break
             
         if found_item:
