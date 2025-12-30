@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+#-*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
 #  Version: 4.0 (The Ultimate Edition)
@@ -492,6 +492,48 @@ def build_list_entry(category_name, channel_name, sat_info, event_name, service_
         MultiContentEntryProgress(pos=(530, 35), size=(110, 8), percent=progress_val, borderWidth=1, foreColor=0x00FF00) if progress_val > 0 else MultiContentEntryText(pos=(0,0), size=(0,0), text="")
     ]
 
+# --- SETTINGS SCREEN (ADDED TO FIX CRASH) ---
+class WhatToWatchSetup(Screen, ConfigListScreen):
+    skin = """
+        <screen position="center,center" size="600,400" title="What to Watch Settings">
+            <widget name="config" position="10,10" size="580,300" scrollbarMode="showOnDemand" />
+            <ePixmap pixmap="skin_default/buttons/red.png" position="10,360" size="25,25" alphatest="on" />
+            <widget name="key_red" position="40,360" size="200,25" zPosition="1" font="Regular;20" halign="left" text="Cancel" transparent="1" />
+            <ePixmap pixmap="skin_default/buttons/green.png" position="300,360" size="25,25" alphatest="on" />
+            <widget name="key_green" position="330,360" size="200,25" zPosition="1" font="Regular;20" halign="left" text="Save" transparent="1" />
+        </screen>"""
+
+    def __init__(self, session):
+        Screen.__init__(self, session)
+        ConfigListScreen.__init__(self, [], session=session)
+        self["key_red"] = Label("Cancel")
+        self["key_green"] = Label("Save")
+        self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
+            "red": self.cancel,
+            "green": self.save,
+            "cancel": self.cancel,
+            "ok": self.save
+        }, -2)
+        self.list = []
+        self.list.append(getConfigListEntry("Discovery Mode", config.plugins.WhatToWatch.discovery_mode))
+        self.list.append(getConfigListEntry("Transparent Background", config.plugins.WhatToWatch.transparent_bg))
+        # API Key and AI are defined in config but not used in logic, adding them anyway
+        self.list.append(getConfigListEntry("Enable AI", config.plugins.WhatToWatch.enable_ai))
+        self.list.append(getConfigListEntry("API Key", config.plugins.WhatToWatch.api_key))
+        self["config"].list = self.list
+        self["config"].setList(self.list)
+
+    def save(self):
+        for x in self["config"].list:
+            x[1].save()
+        config.plugins.WhatToWatch.save()
+        self.close()
+
+    def cancel(self):
+        for x in self["config"].list:
+            x[1].cancel()
+        self.close()
+
 # --- Main Screen ---
 class WhatToWatchScreen(Screen):
     def __init__(self, session):
@@ -677,7 +719,8 @@ class WhatToWatchScreen(Screen):
     def show_options_menu(self):
         disc_state = config.plugins.WhatToWatch.discovery_mode.value
         disc_text = "Disable Discovery" if disc_state else "Enable Discovery"
-        menu = [("Set Reminder", "rem"), ("Pin/Unpin", "pin"), ("Clear Reminders", "clear"), (disc_text, "toggle_disc"), ("Refresh", "refresh"), ("Settings", "ai")]
+        # Added "Update Plugin" to this list
+        menu = [("Set Reminder", "rem"), ("Pin/Unpin", "pin"), ("Clear Reminders", "clear"), (disc_text, "toggle_disc"), ("Refresh", "refresh"), ("Update Plugin", "update"), ("Settings", "ai")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
 
     def menu_cb(self, choice):
@@ -690,7 +733,32 @@ class WhatToWatchScreen(Screen):
         elif c == "clear": self.clear_all_reminders()
         elif c == "toggle_disc": self.toggle_discovery_mode()
         elif c == "refresh": self.start_full_rescan()
+        elif c == "update": self.check_for_updates()
         elif c == "ai": self.session.open(WhatToWatchSetup)
+
+    # --- UPDATE LOGIC ---
+    def check_for_updates(self):
+        self.session.openWithCallback(self.do_update_check, MessageBox, "Check GitHub for updates?", MessageBox.TYPE_YESNO)
+
+    def do_update_check(self, confirm):
+        if not confirm: return
+        cmd = f"curl -k -s --max-time 5 '{UPDATE_URL_VER}' > /tmp/wtw_ver.txt"
+        os.system(cmd)
+        if os.path.exists("/tmp/wtw_ver.txt"):
+            with open("/tmp/wtw_ver.txt", "r") as f:
+                new_ver = f.read().strip()
+            if new_ver and new_ver != VERSION:
+                self.session.openWithCallback(self.install_update, MessageBox, f"New version {new_ver} available! Update now?", MessageBox.TYPE_YESNO)
+            else:
+                self.session.open(MessageBox, "Plugin is up to date.", MessageBox.TYPE_INFO)
+        else:
+            self.session.open(MessageBox, "Connection error. Cannot check updates.", MessageBox.TYPE_ERROR)
+
+    def install_update(self, confirm):
+        if confirm:
+            cmd = f"curl -k -s --max-time 10 '{UPDATE_URL_PY}' > '{PLUGIN_PATH}/plugin.py'"
+            os.system(cmd)
+            self.session.open(MessageBox, "Update successful! Restart GUI to apply.", MessageBox.TYPE_INFO)
 
     def toggle_discovery_mode(self):
         new_state = not config.plugins.WhatToWatch.discovery_mode.value
