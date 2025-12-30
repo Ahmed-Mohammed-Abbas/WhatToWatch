@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.5 (Fix 0 Events & Optimization)
+#  Version: 3.5 (Advanced Discovery: Now, Next, Tonight)
 #  Author: reali22
-#  Description: Fixed main list showing 0 events. Discovery Mode translated & stylish.
+#  Description: Discovery Mode rotates between Now, Next, and Primetime suggestions.
 # ============================================================================
 
 import os
@@ -222,7 +222,7 @@ def translate_text(text, target_lang='en'):
     try:
         encoded = quote(text)
         url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={target_lang}&dt=t&q={encoded}"
-        cmd = f"curl -k -s -A 'Mozilla/5.0' '{url}' > /tmp/wtw_trans.json"
+        cmd = f"curl -k -s --max-time 1 -A 'Mozilla/5.0' '{url}' > /tmp/wtw_trans.json"
         os.system(cmd)
         if os.path.exists("/tmp/wtw_trans.json"):
             with open("/tmp/wtw_trans.json", "r") as f:
@@ -231,31 +231,44 @@ def translate_text(text, target_lang='en'):
     except: pass
     return text
 
-# --- DISCOVERY TOAST (Stylized & Translated) ---
+# --- DISCOVERY TOAST (Advanced) ---
 class DiscoveryToast(Screen):
-    skin = """
-        <screen position="20,20" size="450,110" title="Discovery" flags="wfNoBorder" backgroundColor="#40000000">
-            <eLabel position="0,0" size="450,110" backgroundColor="#cc101520" zPosition="-1" />
-            
-            <eLabel position="0,0" size="8,110" backgroundColor="#00ff00" zPosition="1" />
-            
-            <widget name="header" position="20,8" size="420,25" font="Regular;20" halign="left" foregroundColor="#a0a0a0" backgroundColor="#cc101520" transparent="1" />
-            
-            <widget name="channel" position="20,35" size="420,35" font="Regular;30" halign="left" foregroundColor="#ffcc00" backgroundColor="#cc101520" transparent="1" />
-            
-            <widget name="event" position="20,72" size="420,30" font="Regular;22" halign="left" foregroundColor="#ffffff" backgroundColor="#cc101520" transparent="1" />
-        </screen>
-    """
-    
-    def __init__(self, session, category, channel_name, event_name):
+    # Dynamic Skin based on type
+    def __init__(self, session, mode, category, channel_name, event_name, start_time=None):
         Screen.__init__(self, session)
-        self["header"] = Label(f"{category} • Now Showing")
+        
+        # Color & Text Logic
+        if mode == "now":
+            accent_color = "#ff0000" # RED
+            header_text = f"NOW SHOWING • {category}"
+            title_color = "#ffcc00" # Gold
+        elif mode == "next":
+            accent_color = "#00ff00" # GREEN
+            t_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time else ""
+            header_text = f"COMING NEXT • {t_str} • {category}"
+            title_color = "#aaffaa" # Light Green
+        elif mode == "tonight":
+            accent_color = "#0080ff" # BLUE
+            t_str = time.strftime("%H:%M", time.localtime(start_time)) if start_time else ""
+            header_text = f"TONIGHT • {t_str} • {category}"
+            title_color = "#aaddff" # Light Blue
+            
+        self.skin = f"""
+            <screen position="20,20" size="450,110" title="Discovery" flags="wfNoBorder" backgroundColor="#40000000">
+                <eLabel position="0,0" size="450,110" backgroundColor="#cc101520" zPosition="-1" />
+                <eLabel position="0,0" size="8,110" backgroundColor="{accent_color}" zPosition="1" />
+                <widget name="header" position="20,8" size="420,25" font="Regular;20" halign="left" foregroundColor="#a0a0a0" backgroundColor="#cc101520" transparent="1" />
+                <widget name="channel" position="20,35" size="420,35" font="Regular;30" halign="left" foregroundColor="{title_color}" backgroundColor="#cc101520" transparent="1" />
+                <widget name="event" position="20,72" size="420,30" font="Regular;22" halign="left" foregroundColor="#ffffff" backgroundColor="#cc101520" transparent="1" />
+            </screen>
+        """
+        
+        self["header"] = Label(header_text)
         self["channel"] = Label(channel_name)
         self["event"] = Label(event_name)
         
         self["actions"] = ActionMap(["OkCancelActions"], {
-            "cancel": self.close,
-            "ok": self.close
+            "cancel": self.close, "ok": self.close
         }, -1)
         
         self.timer = eTimer()
@@ -319,35 +332,58 @@ class WTWMonitor:
 
     def discovery_tick(self):
         if not config.plugins.WhatToWatch.discovery_mode.value: return
-        if not GLOBAL_SERVICE_LIST: return
+        
+        if not GLOBAL_SERVICE_LIST:
+            self.build_cache()
+            if not GLOBAL_SERVICE_LIST: return
 
+        # Rotate Category
         cat_name = CATEGORIES_ORDER[self.discovery_cat_idx]
         self.discovery_cat_idx = (self.discovery_cat_idx + 1) % len(CATEGORIES_ORDER)
+        
+        # Randomly choose Mode: Now, Next, or Tonight
+        mode_roll = random.randint(1, 10)
+        if mode_roll <= 5: mode = "now"
+        elif mode_roll <= 8: mode = "next"
+        else: mode = "tonight"
         
         epg_cache = eEPGCache.getInstance()
         now = int(time.time())
         found_item = None
         
         for _ in range(50):
-            s_ref, s_name = random.choice(GLOBAL_SERVICE_LIST)
-            if "::" in s_ref: continue
-            
             try:
-                event = epg_cache.lookupEventTime(eServiceReference(s_ref), now)
+                s_ref, s_name = random.choice(GLOBAL_SERVICE_LIST)
+                if "::" in s_ref: continue
+                
+                # Fetch Logic based on Mode
+                event = None
+                if mode == "now":
+                    event = epg_cache.lookupEventTime(eServiceReference(s_ref), now)
+                elif mode == "next":
+                    # Look for event starting in 30-90 mins
+                    event = epg_cache.lookupEventTime(eServiceReference(s_ref), now + 3600)
+                elif mode == "tonight":
+                    # Look for primetime (after 20:00 today)
+                    # Simple hack: check +4 to +8 hours
+                    event = epg_cache.lookupEventTime(eServiceReference(s_ref), now + 18000)
+
                 if not event: continue
                 
                 event_name = event.getEventName()
-                cat = classify_enhanced(s_name, event_name)
+                if not event_name: continue
                 
+                # Verify category
+                cat = classify_enhanced(s_name, event_name)
                 if cat == cat_name:
-                    # Translate logic here for Discovery Mode
                     trans_name = translate_text(event_name)
-                    found_item = (cat, s_name, trans_name)
+                    start_t = event.getBeginTime()
+                    found_item = (mode, cat, s_name, trans_name, start_t)
                     break
             except: continue
             
         if found_item:
-            self.session.open(DiscoveryToast, found_item[0], found_item[1], found_item[2])
+            self.session.open(DiscoveryToast, found_item[0], found_item[1], found_item[2], found_item[3], found_item[4])
 
     def check_reminders(self):
         now = int(time.time())
@@ -541,14 +577,13 @@ class WhatToWatchScreen(Screen):
         self.process_timer.callback.append(self.process_batch)
         self.onLayoutFinish.append(self.start_full_rescan)
         
-        # Initialize SEEN channels for de-duplication (FIX for 0 Events)
         self.seen_channels = set()
 
     def start_full_rescan(self):
         self.process_timer.stop()
         self.full_list = []
         self.raw_services = []
-        self.seen_channels = set() # Reset safety set
+        self.seen_channels = set()
         self.processed_count = 0
         self["event_list"].setList([])
         
@@ -591,7 +626,6 @@ class WhatToWatchScreen(Screen):
             try:
                 sat_pos = get_sat_position(s_ref)
                 
-                # De-duplication Logic (Corrected)
                 unique_id = f"{s_name}_{sat_pos}"
                 if unique_id in self.seen_channels: continue
                 self.seen_channels.add(unique_id)
@@ -715,7 +749,6 @@ class WhatToWatchScreen(Screen):
         config.plugins.WhatToWatch.save()
         
         if new_state:
-            # Re-sync global monitor if it exists
             global monitor
             if monitor:
                 monitor.discovery_timer.start(60000, False)
