@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.4 (Sorting Fix & De-Duplication)
+#  Version: 3.4 (Dismissible Discovery)
 #  Author: reali22
-#  Description: Fixed Discovery/Sport mix-up. Removed duplicate channels.
+#  Description: Discovery Mode can be dismissed (Exit) or toggled off easily.
 # ============================================================================
 
 import os
 import time
 import json
+import random
 from sys import version_info
 from urllib.parse import quote
 
@@ -31,6 +32,7 @@ config.plugins.WhatToWatch = ConfigSubsection()
 config.plugins.WhatToWatch.api_key = ConfigText(default="", visible_width=50, fixed_size=False)
 config.plugins.WhatToWatch.enable_ai = ConfigYesNo(default=False)
 config.plugins.WhatToWatch.transparent_bg = ConfigYesNo(default=False)
+config.plugins.WhatToWatch.discovery_mode = ConfigYesNo(default=False)
 
 # --- Constants ---
 VERSION = "3.3"
@@ -56,8 +58,7 @@ PICON_PATHS = [
     "/usr/share/enigma2/picon_50x30/"
 ]
 
-# --- REFINED CATEGORY DATABASE (v9.1) ---
-# Ordered dictionary to prioritize matches (e.g. Doc first to catch Discovery before Sport)
+# --- CATEGORY DATABASE ---
 CATEGORIES_ORDER = ["Documentary", "Sports", "Movies", "Series", "Kids", "News", "Religious", "Music"]
 
 CATEGORIES = {
@@ -193,21 +194,14 @@ def classify_enhanced(channel_name, event_name):
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
     if "xxx" in ch_clean or "18+" in ch_clean: return None
-    
-    # Priority Order (Doc > Sport > Movie...)
     for cat in CATEGORIES_ORDER:
         ch_kws, evt_kws = CATEGORIES.get(cat, ([], []))
-        
-        # Check Channel Name First
         for kw in ch_kws:
             if kw in ch_clean: return cat
-            
-    # Secondary Check: Event Name
     for cat in CATEGORIES_ORDER:
         ch_kws, evt_kws = CATEGORIES.get(cat, ([], []))
         for kw in evt_kws:
             if kw in evt_clean: return cat
-            
     return "General"
 
 def get_sat_position(ref_str):
@@ -236,7 +230,36 @@ def translate_text(text, target_lang='en'):
     except: pass
     return text
 
-# --- TOP NOTIFICATION SCREEN ---
+# --- DISCOVERY TOAST (Dismissible) ---
+class DiscoveryToast(Screen):
+    # Top-Left corner popup (10,10)
+    skin = """
+        <screen position="10,10" size="400,120" title="Discovery" flags="wfNoBorder" backgroundColor="#40000000">
+            <eLabel position="0,0" size="400,120" backgroundColor="#20101010" zPosition="-1" />
+            <widget name="header" position="10,5" size="380,30" font="Regular;22" halign="left" foregroundColor="#00ff00" backgroundColor="#20101010" transparent="1" />
+            <widget name="channel" position="10,40" size="380,30" font="Regular;24" halign="left" foregroundColor="#ffffff" backgroundColor="#20101010" transparent="1" />
+            <widget name="event" position="10,75" size="380,40" font="Regular;20" halign="left" foregroundColor="#a0a0a0" backgroundColor="#20101010" transparent="1" />
+        </screen>
+    """
+    
+    def __init__(self, session, category, channel_name, event_name):
+        Screen.__init__(self, session)
+        self["header"] = Label(f"Now Showing: {category}")
+        self["channel"] = Label(channel_name)
+        self["event"] = Label(event_name)
+        
+        # NEW: Allow dismiss via Exit/OK
+        self["actions"] = ActionMap(["OkCancelActions"], {
+            "cancel": self.close,
+            "ok": self.close
+        }, -1)
+        
+        # Auto-close after 10 seconds
+        self.timer = eTimer()
+        self.timer.callback.append(self.close)
+        self.timer.start(10000, True)
+
+# --- TOP NOTIFICATION SCREEN (Reminders) ---
 class WTWNotification(Screen):
     skin = """
         <screen position="center,30" size="1000,100" title="Reminder" flags="wfNoBorder" backgroundColor="#40000000">
@@ -365,7 +388,8 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
         self.list = [
             getConfigListEntry("Enable AI Categorization (Gemini)", config.plugins.WhatToWatch.enable_ai),
             getConfigListEntry("Gemini API Key", config.plugins.WhatToWatch.api_key),
-            getConfigListEntry("Transparent Background", config.plugins.WhatToWatch.transparent_bg)
+            getConfigListEntry("Transparent Background", config.plugins.WhatToWatch.transparent_bg),
+            getConfigListEntry("Enable Discovery Mode", config.plugins.WhatToWatch.discovery_mode)
         ]
         self["config"].list = self.list
         self["config"].setList(self.list)
@@ -443,6 +467,25 @@ class WhatToWatchScreen(Screen):
         self.process_timer = eTimer()
         self.process_timer.callback.append(self.process_batch)
         self.onLayoutFinish.append(self.start_full_rescan)
+        
+        # Discovery Timer: 60 Seconds
+        self.discovery_timer = eTimer()
+        self.discovery_timer.callback.append(self.discovery_tick)
+        if config.plugins.WhatToWatch.discovery_mode.value:
+            self.discovery_timer.start(60000, False) # 1 Minute
+            self.discovery_cat_idx = 0
+
+    def discovery_tick(self):
+        if not config.plugins.WhatToWatch.discovery_mode.value: return
+        
+        cat_name = CATEGORIES_ORDER[self.discovery_cat_idx]
+        self.discovery_cat_idx = (self.discovery_cat_idx + 1) % len(CATEGORIES_ORDER)
+        
+        candidates = [x for x in self.full_list if x['cat'] == cat_name and x['start'] <= int(time.time()) < (x['start'] + x['dur'])]
+        
+        if candidates:
+            item = random.choice(candidates)
+            self.session.open(DiscoveryToast, cat_name, item['name'], item['evt'])
 
     def start_full_rescan(self):
         self.process_timer.stop()
@@ -481,8 +524,6 @@ class WhatToWatchScreen(Screen):
         BATCH_SIZE = 10 
         epg_cache = eEPGCache.getInstance()
         query_time = int(time.time()) + self.time_offset
-        
-        # New: Tracking seen channels to prevent duplicates
         seen_channels = {f"{x['name']}_{x['sat']}" for x in self.full_list}
 
         for _ in range(BATCH_SIZE):
@@ -491,7 +532,6 @@ class WhatToWatchScreen(Screen):
             if "::" in s_ref: continue
             
             try:
-                # Deduplication Check
                 sat_pos = get_sat_position(s_ref)
                 unique_id = f"{s_name}_{sat_pos}"
                 if unique_id in seen_channels: continue
@@ -579,7 +619,19 @@ class WhatToWatchScreen(Screen):
         if cur: self.session.open(MessageBox, translate_text(cur[0][3]), type=MessageBox.TYPE_INFO)
 
     def show_options_menu(self):
-        menu = [("Set Reminder / Auto-Tune", "rem"), ("Pin/Unpin Channel", "pin"), ("Clear All Reminders", "clear"), ("Toggle Source", "src"), ("Refresh List", "refresh"), ("Sort", "sort"), ("Update", "upd"), ("Settings", "ai")]
+        # New Menu Option for Quick Toggle
+        disc_state = config.plugins.WhatToWatch.discovery_mode.value
+        disc_text = "Disable Discovery Mode" if disc_state else "Enable Discovery Mode"
+        
+        menu = [("Set Reminder / Auto-Tune", "rem"), 
+                ("Pin/Unpin Channel", "pin"), 
+                ("Clear All Reminders", "clear"), 
+                (disc_text, "toggle_disc"), # NEW
+                ("Toggle Source", "src"), 
+                ("Refresh List", "refresh"), 
+                ("Sort", "sort"), 
+                ("Update", "upd"), 
+                ("Settings", "ai")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
 
     def menu_cb(self, choice):
@@ -592,11 +644,24 @@ class WhatToWatchScreen(Screen):
                 toggle_pin(cur[0][4])
                 self.rebuild_visual_list()
         elif c == "clear": self.clear_all_reminders()
+        elif c == "toggle_disc": self.toggle_discovery_mode() # Handle toggle
         elif c == "src": self.use_favorites = not self.use_favorites; self.start_full_rescan()
         elif c == "refresh": self.start_full_rescan()
         elif c == "sort": self.show_sort_menu()
         elif c == "upd": self.check_updates()
         elif c == "ai": self.session.open(WhatToWatchSetup)
+
+    def toggle_discovery_mode(self):
+        new_state = not config.plugins.WhatToWatch.discovery_mode.value
+        config.plugins.WhatToWatch.discovery_mode.value = new_state
+        config.plugins.WhatToWatch.save()
+        
+        if new_state:
+            self.discovery_timer.start(60000, False)
+            self.session.open(MessageBox, "Discovery Mode Enabled!", type=MessageBox.TYPE_INFO, timeout=2)
+        else:
+            self.discovery_timer.stop()
+            self.session.open(MessageBox, "Discovery Mode Disabled.", type=MessageBox.TYPE_INFO, timeout=2)
 
     def clear_all_reminders(self):
         global WATCHLIST
