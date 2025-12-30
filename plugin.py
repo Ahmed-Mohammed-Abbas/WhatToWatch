@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 3.3 (OK Menu Crash Fix)
+#  Version: 3.4 (Smart Sorting & Expanded Database)
 #  Author: reali22
-#  Description: Fixed crash when selecting 'Set Reminder' from OK button menu.
+#  Description: Major update to categorization logic and channel database.
 # ============================================================================
 
 import os
@@ -56,16 +56,61 @@ PICON_PATHS = [
     "/usr/share/enigma2/picon_50x30/"
 ]
 
-# --- CATEGORY DATABASE ---
+# --- SMART CATEGORY DATABASE (v9.0 Expanded) ---
 CATEGORIES = {
-    "Kids": (["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan"], ["cartoon", "animation", "anime", "sponge", "patrol", "mouse"]),
-    "Sports": (["sport", "espn", "bein", "sky", "bt sport", "euro", "dazn", "ssc", "alkass", "on sport", "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport"], ["match", "cup", "league", "football", "soccer", "racing", "derby", "final", "premier"]),
-    "News": (["news", "cnn", "bbc", "jazeera", "alarabiya", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw"], ["news", "journal", "report", "briefing", "update", "headline"]),
-    "Documentary": (["doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", "tlc", "quest", "arte"], ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari"]),
-    "Movies": (["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "mbc 2", "mbc max", "rotana cinema", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", "tcm"], ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance"]),
-    "Religious": (["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", "ewtn", "peace tv", "huda"], ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran"]),
-    "Music": (["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits"], ["concert", "videoclip", "hits", "playlist", "songs"]),
-    "Shows": (["drama", "series", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", "rotana drama", "zee alwan", "zee tv", "colors", "sony", "fox", "axn", "novelas", "tlc"], ["episode", "season", "series", "show", "reality", "soap", "telenovela"])
+    "Sports": (
+        # Channel Keywords
+        ["sport", "soccer", "football", "bein", "sky sport", "bt sport", "euro", "dazn", "ssc", "alkass", "on sport", 
+         "nba", "racing", "motogp", "f1", "wwe", "ufc", "fight", "box", "arena", "tsn", "super", "calcio", 
+         "canal+ sport", "eleven", "polsat sport", "ad sport", "dubai sport", "sharjah sport", "ksa sport", 
+         "kuwait sport", "iraq sport", "oman sport", "bahrain sport", "yass", "al ahly", "zamalek"], 
+        # Event Keywords
+        ["match", "vs", "league", "cup", "final", "premier", "bundesliga", "laliga", "serie a", "champion", 
+         "derby", "racing", "grand prix", "tournament", "live", "olymp"]
+    ),
+    "Movies": (
+        ["movie", "film", "cinema", "cine", "kino", "aflam", "hbo", "mbc 2", "mbc max", "mbc action", 
+         "rotana cinema", "rotana classic", "zee aflam", "b4u", "osn movies", "amc", "fox movies", "paramount", 
+         "tcm", "star movies", "dubai one", "mpc", "art aflam", "lbc movies", "top movies", "scare", "imagine", 
+         "c1 action", "c1", "fx", "mgm"], 
+        ["starring", "directed by", "thriller", "action", "comedy", "drama", "horror", "sci-fi", "romance", "adventure", "movie"]
+    ),
+    "Series": (
+        ["drama", "series", "serial", "novela", "mosalsalat", "hikaya", "mbc 1", "mbc 4", "mbc drama", "mbc masr", 
+         "rotana drama", "zee alwan", "zee tv", "colors", "sony", "fox", "axn", "tlc", "lbc", "mtv lebanon", 
+         "al jadeed", "syria drama", "amman", "roya", "dmc", "cbc", "osn series", "netflix", "al hayah", "panorama drama", 
+         "beta", "sama", "lan", "usv"], 
+        ["episode", "season", "series", "soap", "telenovela", "sitcom"]
+    ),
+    "Kids": (
+        ["cartoon", "cn ", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", 
+         "baby", "kika", "gulli", "clan", "baraem", "jeem", "ajyal", "cbeebies", "fix & foxi", "jimjam", "semsem", 
+         "toggolino", "super rtl", "koko"], 
+        ["animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "princess", "lego", "toon"]
+    ),
+    "News": (
+        ["news", "cnn", "bbc", "jazeera", "alarabiya", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", 
+         "trt", "dw", "al hadath", "al hurra", "al sharqiya", "al sumaria", "rudaw", "kurdistan", "news 24", 
+         "al ekhbariya", "al araby", "alghad"], 
+        ["journal", "report", "briefing", "update", "headline", "breaking", "bulletin", "politics"]
+    ),
+    "Documentary": (
+        ["doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", "discovery", 
+         "tlc", "quest", "arte", "geographic", "explorer", "viasat", "iasat history", "iasat nature", "ad nat geo", 
+         "oman cultural", "al jazeera doc"], 
+        ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari", "space"]
+    ),
+    "Religious": (
+        ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv", "aghapy", "noursat", "god tv", 
+         "ewtn", "peace tv", "huda", "al nas", "al rahama", "al insan", "karbala", "al kafeel", "al maaref", 
+         "al kawthar", "safb"], 
+        ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh", "church", "khutbah"]
+    ),
+    "Music": (
+        ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", 
+         "kiss", "dance", "hits", "arabica", "mezzo", "trace", "box hits", "kerrang"], 
+        ["concert", "videoclip", "hits", "playlist", "songs", "top 10", "top 20"]
+    )
 }
 
 # --- GLOBAL HELPERS ---
@@ -146,12 +191,17 @@ def classify_enhanced(channel_name, event_name):
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
     if "xxx" in ch_clean or "18+" in ch_clean: return None
+    
+    # Priority Check: Channel Name
     for cat, (ch_kws, _) in CATEGORIES.items():
         for kw in ch_kws:
             if kw in ch_clean: return cat
+            
+    # Secondary Check: Event Name
     for cat, (_, evt_kws) in CATEGORIES.items():
         for kw in evt_kws:
             if kw in evt_clean: return cat
+            
     return "General"
 
 def get_sat_position(ref_str):
@@ -335,7 +385,6 @@ class WhatToWatchScreen(Screen):
         
         self.skin = f"""<screen position="0,0" size="700,860" title="What to Watch" flags="wfNoBorder" backgroundColor="#00000000">
             <eLabel position="0,0" size="700,860" backgroundColor="{bg_color}" zPosition="-1" />
-            
             <eLabel text="What to Watch" position="10,10" size="680,40" font="Regular;28" halign="center" valign="center" foregroundColor="#00ff00" backgroundColor="{bg_color}" transparent="1" />
             <eLabel text="By {AUTHOR}" position="10,45" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#505050" backgroundColor="{bg_color}" transparent="1" />
             <widget name="status_label" position="10,70" size="680,30" font="Regular;18" halign="center" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
@@ -343,16 +392,12 @@ class WhatToWatchScreen(Screen):
             
             <ePixmap pixmap="skin_default/buttons/red.png" position="20,760" size="25,25" alphatest="on" />
             <widget name="key_red" position="55,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
-            
             <ePixmap pixmap="skin_default/buttons/yellow.png" position="20,800" size="25,25" alphatest="on" />
             <widget name="key_yellow" position="55,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
-            
             <ePixmap pixmap="skin_default/buttons/green.png" position="350,760" size="25,25" alphatest="on" />
             <widget name="key_green" position="385,760" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
-            
             <ePixmap pixmap="skin_default/buttons/blue.png" position="350,800" size="25,25" alphatest="on" />
             <widget name="key_blue" position="385,800" size="280,25" zPosition="1" font="Regular;18" halign="left" valign="center" foregroundColor="#ffffff" backgroundColor="{bg_color}" transparent="1" />
-            
             <widget name="info_bar" position="10,830" size="680,20" font="Regular;16" halign="center" valign="center" foregroundColor="#ffff00" backgroundColor="{bg_color}" transparent="1" />
         </screen>"""
 
@@ -545,7 +590,6 @@ class WhatToWatchScreen(Screen):
         self.session.open(MessageBox, "All reminders cleared!", type=MessageBox.TYPE_INFO, timeout=2)
         self.rebuild_visual_list()
 
-    # FIXED: OK Button Logic (Safe)
     def ok_pressed(self):
         cur = self["event_list"].getCurrent()
         if not cur: return
@@ -567,7 +611,6 @@ class WhatToWatchScreen(Screen):
         elif action == "remove_rem":
             self.add_reminder() 
         elif action == "rem":
-            # FIX: Only Open Menu, don't Save
             self.add_reminder() 
 
     def add_reminder(self):
