@@ -35,7 +35,7 @@ config.plugins.WhatToWatch.transparent_bg = ConfigYesNo(default=False)
 config.plugins.WhatToWatch.discovery_mode = ConfigYesNo(default=False)
 
 # --- Constants ---
-VERSION = "3.9"
+VERSION = "4.0"
 AUTHOR = "reali22"
 PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/WhatToWatch/")
 ICON_PATH = os.path.join(PLUGIN_PATH, "icons")
