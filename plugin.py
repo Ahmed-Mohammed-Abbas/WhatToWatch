@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 4.0 (Settings Crash Fix & Update Option)
+#  Version: 4.0 (Stability & Anti-Crash)
 #  Author: reali22
-#  Description: Fixed Settings crash. Added Update option to Blue Menu.
+#  Description: Memory optimizations, Safer scanning, Favorites default.
 # ============================================================================
 
 import os
@@ -66,7 +66,8 @@ CATEGORIES_DATA = {
     "Documentary": (0x800080, ["discovery", "doc", "history", "nat geo", "wild", "planet", "animal", "science", "investigation", "crime", "tlc", "quest", "arte", "geographic", "explorer", "viasat", "iasat history", "iasat nature", "ad nat geo", "oman cultural", "al jazeera doc", "dw doc", "bbc earth", "bbc lifestyle", "fatafeat", "travel", "food", "hgtv", "dtx", "id", "planete", "ushuaia", "rmc decouverte", "focus"], ["documentary", "wildlife", "expedition", "universe", "factory", "engineering", "survival", "ancient", "nature", "safari", "space"]),
     "News": (0x808080, ["news", "cnn", "bbc news", "bbc world", "bbc arabic", "jazeera", "alarabiya", "skynews", "cnbc", "bloomberg", "weather", "rt ", "france 24", "trt", "dw", "al hadath", "al hurra", "al sharqiya", "al sumaria", "rudaw", "kurdistan", "news 24", "al ekhbariya", "al araby", "alghad", "i24", "euronews", "lci", "cnews", "bfm"], ["journal", "report", "briefing", "update", "headline", "breaking", "bulletin", "politics"]),
     "Music": (0xFF69B4, ["music", "mtv", "vh1", "melody", "mazzika", "rotana clip", "wanasah", "aghani", "4fun", "eska", "polo", "kiss", "dance", "hits", "arabica", "mezzo", "trace", "box hits", "kerrang", "magic", "nrj", "radio"], ["concert", "videoclip", "hits", "playlist", "songs", "top 10", "top 20"]),
-    "Religious": (0xFFFFFF, ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv coptic", "mesat", "aghapy", "noursat", "god tv", "ewtn", "peace tv", "huda", "al nas", "al rahama", "al insan", "karbala", "al kafeel", "al maaref", "al kawthar", "safb", "al majarrah", "al nadah", "al fath", "nour"], ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh", "church", "khutbah"])
+    "Religious": (0xFFFFFF, ["quran", "sunnah", "iqraa", "resalah", "majd", "karma", "miracle", "ctv coptic", "mesat", "aghapy", "noursat", "god tv", "ewtn", "peace tv", "huda", "al nas", "al rahama", "al insan", "karbala", "al kafeel", "al maaref", "al kawthar", "safb", "al majarrah", "al nadah", "al fath", "nour"], ["prayer", "mass", "worship", "gospel", "recitation", "bible", "quran", "sheikh", "church", "khutbah"]),
+    "General": (0xAAAAAA, [], []) # Fallback Category
 }
 
 CATEGORIES_ORDER = ["Kids", "Sports", "Religious", "Documentary", "Music", "News", "Movies", "Series"]
@@ -231,7 +232,7 @@ class DiscoveryToast(Screen):
         self.timer.callback.append(self.close)
         self.timer.start(10000, True)
 
-# --- SETTINGS SCREEN (Fixed Crash) ---
+# --- SETTINGS SCREEN ---
 class WhatToWatchSetup(ConfigListScreen, Screen):
     skin = """<screen position="center,center" size="800,400" title="Settings">
             <widget name="config" position="10,10" size="780,300" scrollbarMode="showOnDemand" />
@@ -243,12 +244,10 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
         self.session = session
         self.list = []
         ConfigListScreen.__init__(self, self.list, session=self.session)
-        
         self["key_green"] = Label("Save Settings")
         self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
             "green": self.save, "save": self.save, "cancel": self.cancel, "ok": self.save
         }, -2)
-        
         self.onLayoutFinish.append(self.layoutFinished)
 
     def layoutFinished(self):
@@ -275,6 +274,22 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
     def cancel(self):
         for x in self["config"].list: x[1].cancel()
         self.close()
+
+# --- TOP NOTIFICATION ---
+class WTWNotification(Screen):
+    skin = """
+        <screen position="center,30" size="1000,100" title="Reminder" flags="wfNoBorder" backgroundColor="#40000000">
+            <eLabel position="0,0" size="1000,100" backgroundColor="#20101010" zPosition="-1" />
+            <eLabel text="!" position="20,20" size="60,60" font="Regular;48" halign="center" valign="center" foregroundColor="#FFFF00" backgroundColor="#20101010" transparent="1" />
+            <widget name="message" position="100,10" size="880,80" font="Regular;28" valign="center" halign="left" foregroundColor="#FFFFFF" backgroundColor="#20101010" transparent="1" />
+        </screen>
+    """
+    def __init__(self, session, message, timeout=5):
+        Screen.__init__(self, session)
+        self["message"] = Label(message)
+        self.timer = eTimer()
+        self.timer.callback.append(self.close)
+        self.timer.start(timeout * 1000, True)
 
 # --- MAIN SCREEN ---
 class WhatToWatchScreen(Screen):
@@ -333,7 +348,7 @@ class WhatToWatchScreen(Screen):
         self.processed_count = 0
         self.current_filter = None
         self.current_sat_filter = None
-        self.use_favorites = False
+        self.use_favorites = True # Changed Default to True (Safer)
         self.sort_mode = 'category'
         self.time_offset = 0
         self.process_timer = eTimer()
@@ -365,7 +380,8 @@ class WhatToWatchScreen(Screen):
             services = service_handler.list(eServiceReference(bouquet_entry[0]))
             if services:
                 self.raw_services.extend(services.getContent("SN", True))
-                if len(self.raw_services) > 2000: break
+                # SAFETY LIMIT: Stop at 1200 channels to prevent crash
+                if len(self.raw_services) > 1200: break
 
         self["status_label"].setText(f"Scanning {len(self.raw_services)} channels...")
         self.process_timer.start(10, False)
@@ -374,6 +390,7 @@ class WhatToWatchScreen(Screen):
         if not self.raw_services:
             self.process_timer.stop()
             self["status_label"].setText(f"Done. {len(self.full_list)} events found.")
+            self.rebuild_visual_list() # Ensure final list is drawn
             return
 
         BATCH_SIZE = 10 
@@ -387,7 +404,6 @@ class WhatToWatchScreen(Screen):
             
             try:
                 sat_pos = get_sat_position(s_ref)
-                
                 unique_id = f"{s_name}_{sat_pos}"
                 if unique_id in self.seen_channels: continue
                 self.seen_channels.add(unique_id)
@@ -406,7 +422,8 @@ class WhatToWatchScreen(Screen):
             except: continue
 
         self.processed_count += BATCH_SIZE
-        if self.processed_count % 50 == 0: self.rebuild_visual_list()
+        # Optimized: Update UI less frequently (every 100 items) to prevent lagging
+        if self.processed_count % 100 == 0: self.rebuild_visual_list()
 
     def rebuild_visual_list(self):
         if self.current_sat_filter == "watchlist":
@@ -425,7 +442,6 @@ class WhatToWatchScreen(Screen):
                 x["name"]
             ))
         
-        show_prog = (self.time_offset == 0) and (self.current_sat_filter != "watchlist")
         res_list = []
         for item in filtered:
             res_list.append(build_list_entry(item["cat"], item["name"], item["sat"], item["evt"], item["ref"], item["start"], item["dur"]))
@@ -462,13 +478,13 @@ class WhatToWatchScreen(Screen):
     def show_options_menu(self):
         disc_state = config.plugins.WhatToWatch.discovery_mode.value
         disc_text = "Disable Discovery" if disc_state else "Enable Discovery"
-        # UPDATED: Added Update Option
         menu = [("Set Reminder", "rem"), 
                 ("Pin/Unpin", "pin"), 
                 ("Clear Reminders", "clear"), 
                 (disc_text, "toggle_disc"), 
+                ("Toggle Source", "src"), 
                 ("Refresh", "refresh"), 
-                ("Update Plugin", "upd"), # NEW
+                ("Update Plugin", "upd"), 
                 ("Settings", "ai")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
 
@@ -481,8 +497,9 @@ class WhatToWatchScreen(Screen):
             if cur: toggle_pin(cur[0][4]); self.rebuild_visual_list()
         elif c == "clear": self.clear_all_reminders()
         elif c == "toggle_disc": self.toggle_discovery_mode()
+        elif c == "src": self.use_favorites = not self.use_favorites; self.start_full_rescan()
         elif c == "refresh": self.start_full_rescan()
-        elif c == "upd": self.check_updates() # Handle update
+        elif c == "upd": self.check_updates()
         elif c == "ai": self.session.open(WhatToWatchSetup)
 
     def toggle_discovery_mode(self):
