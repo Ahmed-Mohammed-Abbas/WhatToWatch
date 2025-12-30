@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 4.0 (v11 Visuals + Full Blue Menu)
+#  Version: 4.0 (Stable Core & Memory Safe)
 #  Author: reali22
-#  Description: v11.0 Core/Visuals with restored Blue Button options (Sort, Source, Update).
+#  Description: v11.0 Engine with 1000 channel safety limit + Settings Fix.
 # ============================================================================
 
 import os
@@ -137,14 +137,12 @@ def get_picon_resized(service_ref, channel_name):
                     PICON_CACHE[ref_clean] = ptr
                     return ptr
     except: pass
-    
     PICON_CACHE[ref_clean] = None 
     return None
 
 def classify_enhanced(channel_name, event_name):
     cache_key = f"{channel_name}|{event_name}"
-    if cache_key in CLASSIFICATION_CACHE:
-        return CLASSIFICATION_CACHE[cache_key]
+    if cache_key in CLASSIFICATION_CACHE: return CLASSIFICATION_CACHE[cache_key]
 
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
@@ -348,7 +346,7 @@ class WhatToWatchScreen(Screen):
         self.processed_count = 0
         self.current_filter = None
         self.current_sat_filter = None
-        self.use_favorites = True 
+        self.use_favorites = True # Safer Default
         self.sort_mode = 'category'
         self.time_offset = 0
         self.process_timer = eTimer()
@@ -357,6 +355,7 @@ class WhatToWatchScreen(Screen):
         self.seen_channels = set()
 
     def delayed_start(self):
+        # 500ms delay prevents crash by allowing UI to render first
         self.init_timer = eTimer()
         self.init_timer.callback.append(self.start_full_rescan)
         self.init_timer.start(500, True)
@@ -385,8 +384,8 @@ class WhatToWatchScreen(Screen):
             services = service_handler.list(eServiceReference(bouquet_entry[0]))
             if services:
                 self.raw_services.extend(services.getContent("SN", True))
-                # v11 Logic Restored: Allow more channels
-                if len(self.raw_services) > 1500: break
+                # SAFETY LIMIT: 1000 channels max to prevent toggle crash
+                if len(self.raw_services) > 1000: break
 
         self["status_label"].setText(f"Scanning {len(self.raw_services)} channels...")
         self.process_timer.start(10, False)
@@ -506,7 +505,7 @@ class WhatToWatchScreen(Screen):
         elif c == "src": self.use_favorites = not self.use_favorites; self.start_full_rescan()
         elif c == "refresh": self.start_full_rescan()
         elif c == "sort": self.show_sort_menu()
-        elif c == "upd": self.check_updates()
+        elif c == "upd": self.check_updates() # Handle update
         elif c == "ai": self.session.open(WhatToWatchSetup)
 
     def toggle_discovery_mode(self):
