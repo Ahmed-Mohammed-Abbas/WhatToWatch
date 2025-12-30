@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # ============================================================================
 #  Plugin: What to Watch
-#  Version: 4.0 (v11 Engine + Settings Fix)
+#  Version: 4.0 (v11 Visuals + Full Blue Menu)
 #  Author: reali22
-#  Description: The fast v11 core with a patched Settings menu to stop crashes.
+#  Description: v11.0 Core/Visuals with restored Blue Button options (Sort, Source, Update).
 # ============================================================================
 
 import os
@@ -57,7 +57,7 @@ PICON_PATHS = [
     "/usr/share/enigma2/picon_50x30/"
 ]
 
-# --- CATEGORY DATABASE & COLORS (v11 Standards) ---
+# --- CATEGORY DATABASE & COLORS ---
 CATEGORIES_DATA = {
     "Kids": (0x00FF00, ["cartoon network", "cn arabia", "cn english", "cn hd", "nickelodeon", "nick", "disney", "boomerang", "spacetoon", "mbc 3", "pogo", "majid", "dreamworks", "baby", "kika", "gulli", "clan", "baraem", "jeem", "ajyal", "cbeebies", "fix & foxi", "jimjam", "semsem", "toggolino", "super rtl", "koko", "toverland", "duck tv", "cartoonito", "teletoon", "tvp abc", "minimini", "top kids", "junior", "cbqc"], ["animation", "anime", "sponge", "patrol", "mouse", "tom and jerry", "princess", "lego", "toon", "kids"]),
     "Sports": (0xFF0000, ["sport", "soccer", "football", "bein", "sky sport", "bt sport", "eurosport", "dazn", "ssc", "alkass", "on sport", "nba", "racing", "motogp", "formula 1", "formula one", "wwe", "ufc", "fight", "arena", "tsn", "super", "calcio", "canal+ sport", "eleven", "polsat sport", "ad sport", "dubai sport", "sharjah sport", "ksa sport", "kuwait sport", "iraq sport", "oman sport", "bahrain sport", "yass", "al ahly", "zamalek", "ss-1", "ss-2", "ss-3", "ss-4", "fightbox", "setanta", "match!", "espn", "motorvision", "extreme", "abudhabi sport"], ["match", "vs", "league", "cup", "final", "premier", "bundesliga", "laliga", "serie a", "champion", "derby", "racing", "grand prix", "tournament", "live", "olymp"]),
@@ -137,12 +137,14 @@ def get_picon_resized(service_ref, channel_name):
                     PICON_CACHE[ref_clean] = ptr
                     return ptr
     except: pass
+    
     PICON_CACHE[ref_clean] = None 
     return None
 
 def classify_enhanced(channel_name, event_name):
     cache_key = f"{channel_name}|{event_name}"
-    if cache_key in CLASSIFICATION_CACHE: return CLASSIFICATION_CACHE[cache_key]
+    if cache_key in CLASSIFICATION_CACHE:
+        return CLASSIFICATION_CACHE[cache_key]
 
     ch_clean = channel_name.lower()
     evt_clean = event_name.lower() if event_name else ""
@@ -230,7 +232,7 @@ class DiscoveryToast(Screen):
         self.timer.callback.append(self.close)
         self.timer.start(10000, True)
 
-# --- SETTINGS SCREEN (Fixed: No Crash) ---
+# --- SETTINGS SCREEN (Fixed) ---
 class WhatToWatchSetup(ConfigListScreen, Screen):
     skin = """<screen position="center,center" size="800,400" title="Settings">
             <widget name="config" position="10,10" size="780,300" scrollbarMode="showOnDemand" />
@@ -240,7 +242,6 @@ class WhatToWatchSetup(ConfigListScreen, Screen):
     def __init__(self, session):
         Screen.__init__(self, session)
         self.session = session
-        # Initialize ConfigList properly
         self.list = []
         ConfigListScreen.__init__(self, self.list, session=self.session)
         self["key_green"] = Label("Save Settings")
@@ -347,7 +348,7 @@ class WhatToWatchScreen(Screen):
         self.processed_count = 0
         self.current_filter = None
         self.current_sat_filter = None
-        self.use_favorites = True # Safer Default
+        self.use_favorites = True 
         self.sort_mode = 'category'
         self.time_offset = 0
         self.process_timer = eTimer()
@@ -356,7 +357,6 @@ class WhatToWatchScreen(Screen):
         self.seen_channels = set()
 
     def delayed_start(self):
-        # 500ms delay prevents crash by allowing UI to render first
         self.init_timer = eTimer()
         self.init_timer.callback.append(self.start_full_rescan)
         self.init_timer.start(500, True)
@@ -385,8 +385,8 @@ class WhatToWatchScreen(Screen):
             services = service_handler.list(eServiceReference(bouquet_entry[0]))
             if services:
                 self.raw_services.extend(services.getContent("SN", True))
-                # v11 Logic: Load 2000+ channels is fine as long as we process them in batch
-                if len(self.raw_services) > 2000: break
+                # v11 Logic Restored: Allow more channels
+                if len(self.raw_services) > 1500: break
 
         self["status_label"].setText(f"Scanning {len(self.raw_services)} channels...")
         self.process_timer.start(10, False)
@@ -482,12 +482,14 @@ class WhatToWatchScreen(Screen):
     def show_options_menu(self):
         disc_state = config.plugins.WhatToWatch.discovery_mode.value
         disc_text = "Disable Discovery" if disc_state else "Enable Discovery"
+        # Full Blue Menu
         menu = [("Set Reminder", "rem"), 
                 ("Pin/Unpin", "pin"), 
                 ("Clear Reminders", "clear"), 
                 (disc_text, "toggle_disc"), 
                 ("Toggle Source", "src"), 
                 ("Refresh", "refresh"), 
+                ("Sort", "sort"), 
                 ("Update Plugin", "upd"), 
                 ("Settings", "ai")]
         self.session.openWithCallback(self.menu_cb, ChoiceBox, title="Options", list=menu)
@@ -503,6 +505,7 @@ class WhatToWatchScreen(Screen):
         elif c == "toggle_disc": self.toggle_discovery_mode()
         elif c == "src": self.use_favorites = not self.use_favorites; self.start_full_rescan()
         elif c == "refresh": self.start_full_rescan()
+        elif c == "sort": self.show_sort_menu()
         elif c == "upd": self.check_updates()
         elif c == "ai": self.session.open(WhatToWatchSetup)
 
