@@ -79,3 +79,79 @@ I have completely overhauled the What to Watch plugin to make it the ultimate EP
 👇 Download the update now and take control of your TV!
 
 
+
+- Version +4.0
+
+🌟 Key Features:
+
+🧠 Expert Smart Sorting
+
+Automatically organizes channels into a logical flow: News → Sports → Movies → Series → Kids → Music → Documentary → Religious.
+
+Intelligent differentiation logic (e.g., correctly separates BBC News from BBC Earth documentaries and BBC One entertainment).
+
+
+
+🛡️ Strict Adult Content Filter
+
+Safety First: A comprehensive, hard-coded blacklist blocks adult content completely.
+
+Deep Scanning: Scans both Channel Names and Event/Program Names in real-time. If a program is flagged as unsafe (even on a general channel), it is removed from the list.
+
+
+
+🎨 Modern Visual Interface
+
+Genre Color Strips: Vertical color tags for instant genre recognition (e.g., Red for Sports, Green for Kids, Blue for Movies).
+
+Visual Progress Bars: See exactly how much time is left for every show at a glance.
+
+Picon Support: Automatically resizes and displays channel logos (Picons) with fallback support.
+
+Transparent Mode: Optional transparent background for a sleek, glass-like look (toggleable in Settings).
+
+
+
+🚀 Discovery Mode
+
+Smart Suggestions: Periodically displays a non-intrusive "Glass Slate" toast notification suggesting what to watch (Now, Next, or Tonight).
+
+Persistent Settings: Enable/Disable status is saved to disk and remembered after every reboot.
+
+
+
+🔔 Advanced Reminders & Watchlist
+
+Watchlist Filter: Press Green -> "My Watchlist" to see only your favorite upcoming shows.
+
+Auto-Tune: Set reminders that automatically zap to the channel when the show starts.
+
+Recurring Events: Option to set weekly recurring reminders.
+
+
+
+🌍 Built-in Translator
+
+Press the EPG/INFO button to instantly translate program descriptions to English using Google Translate. Note: this feature is working automatically for the discovery mode.
+
+
+
+⚡ Performance & Updates
+
+Zero Lag: Heavy use of caching (PICON_CACHE, CLASSIFICATION_CACHE) ensures smooth scrolling even with thousands of channels.
+
+In-App Updater: Check for and install new versions directly from the "Options" menu (Blue Button).
+
+
+
+Control Mapping:
+
+🔴 Red: Change Time (Now, +1h, +2h, etc.)
+
+🟢 Green: Filter by Satellite / Watchlist
+
+🟡 Yellow: Filter by Category
+
+🔵 Blue: Options (Updates, Settings, Pinning)
+
+ℹ️ Info: Translate Event Text
